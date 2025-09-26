@@ -1,0 +1,21 @@
+[project]
+name = "frink-embeddings-web"
+version = "0.1.0"
+description = "Frink Embeddings Web"
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Patrick Golden", email = "ptgolden@email.unc.edu" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "flask>=3.1.2",
+    "qdrant-client>=1.15.1",
+]
+
+[project.scripts]
+frink-embeddings-web = "frink_embeddings_web:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
