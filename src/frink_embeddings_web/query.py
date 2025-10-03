@@ -1,61 +1,87 @@
 import numpy as np
-from qdrant_client import QdrantClient, Filter, FieldCondition, MatchValue
+from qdrant_client import QdrantClient
+from qdrant_client.models import Filter, FieldCondition, MatchValue, ScoredPoint
+from sentence_transformers import SentenceTransformer
+
 from frink_embeddings_web.model import Query, Feature, TextFeature, NodeFeature
 
-QDRANT_URI = "http://127.0.0.1/"
-QDRANT_PORT = 5554
-QDRANT_COLLECTION_NAME = "OKN-Graph"
 
-def embed_text(text: str):
-    ...
+def embed_text(text: str, model: SentenceTransformer) -> np.ndarray:
+    """Encode text into the same embedding space as the stored vectors."""
+    return model.encode(text, normalize_embeddings=False).astype(np.float32)
 
-def get_embedding(feature: Feature) -> list[float]:
+
+def get_embedding(
+    feature: Feature,
+    client: QdrantClient,
+    model: SentenceTransformer,
+    collection_name: str,
+) -> np.ndarray:
     match feature:
         case TextFeature(type="text"):
-            return embed_text(feature.value)
+            return embed_text(feature.value, model)
         case NodeFeature(type="node"):
-            res = client.scroll(
-                collection_name=QDRANT_COLLECTION_NAME,
+            points, _ = client.scroll(
+                collection_name=collection_name,
                 scroll_filter=Filter(
-                    must=[FieldCondition(key="iri", match=MatchValue(value=feature.value))]
+                    must=[
+                        FieldCondition(key="iri", match=MatchValue(value=feature.value))
+                    ]
                 ),
                 limit=1,
+                with_vectors=True,
             )
-            return np.array(res[0][0].vector)
-            # Get the vector from the QDrant client
+            if not points:
+                raise ValueError(f"IRI not found: {feature.value}")
+            vec = points[0].vector
+            return np.array(vec, dtype=np.float32)
         case _:
-            raise ValueError()
+            raise ValueError("Unsupported feature type")
 
-def query(query: Query, limit: int=10):
-    positive_vectors = [get_embedding(feature) for feature in query.positive]
-    negative_vectors = [get_embedding(feature) for feature in query.negative]
 
-    query_vector = np.mean(positive_vectors, axis=0)
+def build_query_vector(
+    query: Query,
+    client: QdrantClient,
+    model: SentenceTransformer,
+    collection_name: str,
+) -> np.ndarray:
+    if not query.positive:
+        raise ValueError("At least one positive feature is required")
 
-    if negative_vectors:
-        negative_mean = np.mean(negative_vectors, axis=0)
-        query_vector = query_vector - negative_mean
+    # Average positive feature vectors
+    pos_vecs = [
+        get_embedding(feature, client, model, collection_name)
+        for feature in query.positive
+    ]
+    vec = np.mean(pos_vecs, axis=0)
 
-    norm = np.linalg.norm(query_vector)
-    if norm > 0:
-        query_vector = query_vector / norm
+    # If any negatives are provided, subtract their average
+    if query.negative:
+        neg_vecs = [
+            get_embedding(feature, client, model, collection_name)
+            for feature in query.negative
+        ]
+        vec = vec - np.mean(neg_vecs, axis=0)
+
+    # Normalize to unit length
+    norm = float(np.linalg.norm(vec))
+    return vec / norm if norm > 0 else vec
+
+
+def run_similarity_search(
+    query_obj: Query,
+    client: QdrantClient,
+    model: SentenceTransformer,
+    collection_name: str,
+    limit: int = 10,
+) -> list[ScoredPoint]:
+    vector = build_query_vector(query_obj, client, model, collection_name)
 
     return client.search(
-        collection_name=QDRANT_COLLECTION_NAME,
-        query_vector=query_vector.tolist(),
-        limit=limit
+        collection_name=collection_name,
+        query_vector=vector.tolist(),
+        with_payload=True,
+        limit=limit,
     )
 
 
-
-def main():
-    client = QdrantClient(QDRANT_URI, port=QDRANT_PORT)
-    collection = client.get_collection(QDRANT_COLLECTION_NAME)
-
-    item = client.retrieve(
-        QDRANT_COLLECTION_NAME,
-        ["http://example.com/"],
-    )
-
-if __name__ == "__main__":
-    main()

@@ -1,2 +1,6 @@
+from frink_embeddings_web.app import create_app
+
+
 def main() -> None:
-    print("Hello from frink-embeddings-web!")
+    app = create_app()
+    app.run()
