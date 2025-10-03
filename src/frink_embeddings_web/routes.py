@@ -1,7 +1,8 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify
 from pydantic import ValidationError
 from qdrant_client.models import ScoredPoint
 
+from frink_embeddings_web.context import get_ctx
 from frink_embeddings_web.model import Query
 from frink_embeddings_web.query import run_similarity_search
 
@@ -33,16 +34,14 @@ def post_query():
     except ValidationError as e:
         return jsonify({"error": "invalid request", "details": e.errors()}), 400
 
-    client = current_app.config["QDRANT_CLIENT"]
-    model = current_app.config["EMBEDDER"]
-    collection = current_app.config["QDRANT_COLLECTION"]
+    ctx = get_ctx()
 
     try:
         points = run_similarity_search(
             query_obj=q,
-            client=client,
-            model=model,
-            collection_name=collection,
+            client=ctx.client,
+            model=ctx.model,
+            collection_name=ctx.collection,
             limit=limit,
         )
     except ValueError as e:

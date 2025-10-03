@@ -1,12 +1,13 @@
 import os
 
-from flask import Flask
 from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
 
+from frink_embeddings_web.context import AppContext, WrappedFlask
 
-def create_app() -> Flask:
-    app = Flask(__name__)
+
+def create_app() -> WrappedFlask:
+    app = WrappedFlask(__name__)
 
     # Configuration from environment with sensible defaults
     qdrant_host = os.getenv("QDRANT_HOST", "http://127.0.0.1")
@@ -16,11 +17,14 @@ def create_app() -> Flask:
 
     # Initialize shared dependencies once
     client = QdrantClient(qdrant_host, port=qdrant_port, timeout=30)
-    app.config["QDRANT_CLIENT"] = client
-    app.config["EMBEDDER"] = SentenceTransformer(model_name)
-    app.config["QDRANT_COLLECTION"] = collection
+    model = SentenceTransformer(model_name)
 
-    print(client)
+    ctx = AppContext(
+        client=client,
+        model=model,
+        collection=collection,
+    )
+    app.ctx = ctx
 
     # Register API routes
     from frink_embeddings_web.routes import api
@@ -28,6 +32,7 @@ def create_app() -> Flask:
     app.register_blueprint(api)
 
     return app
+
 
 if __name__ == "__main__":
     app = create_app()
