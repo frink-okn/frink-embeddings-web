@@ -26,10 +26,11 @@ def create_app() -> WrappedFlask:
     )
     app.ctx = ctx
 
-    # Register API routes
-    from frink_embeddings_web.routes import api
+    # Register API & Web routes
+    from frink_embeddings_web.routes import api, web
 
     app.register_blueprint(api)
+    app.register_blueprint(web)
 
     return app
 

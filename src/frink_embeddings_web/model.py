@@ -19,3 +19,4 @@ Feature = Annotated[
 class Query(BaseModel):
     positive: list[Feature]
     negative: list[Feature]
+    graphs: list[str] | None
