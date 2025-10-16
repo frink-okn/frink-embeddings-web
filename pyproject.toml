@@ -10,6 +10,7 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "flask>=3.1.2",
+    "gunicorn>=23.0.0",
     "pydantic>=2.11.9",
     "qdrant-client>=1.15.1",
     "sentence-transformers>=5.1.1",
@@ -36,3 +37,6 @@ torchvision = [
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 explicit = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/frink_embeddings_web"]
