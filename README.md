@@ -13,6 +13,32 @@ Configuration (env vars)
 - SENTENCE_MODEL_NAME: default all-MiniLM-L6-v2
 - HOST: HTTP server bind host (default 0.0.0.0)
 - PORT: HTTP server bind port (default 8000)
+- NUM_WORKERS: Number of gunicorn workers to use (default 4)
 - DEBUG: Set to "1" to enable Flask debug
 
+To host under a subdirectory (gunicorn only), set the SCRIPT_NAME environment variable.
 
+# Running
+
+To run a local server using Flask, run:
+
+```
+make dev
+```
+
+# Building a docker image
+
+To create a Docker image that will run the server using gunicorn, run:
+
+```
+make docker-build
+```
+
+To test your image, run:
+
+```
+make docker-run
+```
+
+By default, this image is called `frink-web`. Change the name by setting the
+environment variable `DOCKER_NAME`.
