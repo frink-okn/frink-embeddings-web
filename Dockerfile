@@ -1,26 +1,24 @@
-# syntax=docker/dockerfile:1
 FROM ghcr.io/astral-sh/uv:debian
 
-
-
-
-
-# Set working directory
 WORKDIR /app
 
-# Copy your pyproject.toml (and optional poetry.lock)
-COPY pyproject.toml ./
-# COPY poetry.lock ./
+# Send logs to Docker logs immediately
+ENV PYTHONUNBUFFERED=1
 
-# Copy the rest of your project
-COPY ./* ./
+# Add application to PYTHONPATH
+ENV PYTHONPATH=/app/src
+
+# Default number of gunicorn workers
+ENV NUM_WORKERS=4
+
+COPY pyproject.toml uv.lock README.md ./
 
 
-# Install dependencies
-RUN uv sync -p 3.12
+RUN uv sync --frozen -p 3.12
 
+COPY . .
 
-WORKDIR /app/ru
+EXPOSE 8000
 
-# Default command (adjust as needed)
-CMD ["uv", "run", "python",  "-m", "frink_embeddings_web.app"]
+# gunicorn configuration picked up from gunicorn.conf.py
+CMD [".venv/bin/gunicorn",  "frink_embeddings_web.app:app"]

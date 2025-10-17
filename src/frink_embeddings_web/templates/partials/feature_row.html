@@ -12,7 +12,7 @@
   </select>
 
   <button type="button"
-          hx-get="/noop"
+          hx-get="{{ url_for('web.noop') }}"
           hx-target="closest .feature-row"
           hx-swap="outerHTML">
     Delete
