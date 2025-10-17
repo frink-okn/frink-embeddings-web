@@ -50,7 +50,7 @@ spec:
           args:
             - -b
             - 0.0.0.0:5000
-            - src.frink_embeddings_web:app
+            - src.frink_embeddings_web.app:app
           ports:
             - name: http
               containerPort: 5000
