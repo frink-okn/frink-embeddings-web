@@ -1,0 +1,2 @@
+class URINotFoundError(ValueError):
+    pass

@@ -4,6 +4,7 @@ from qdrant_client.models import Filter, FieldCondition, MatchValue, ScoredPoint
 from sentence_transformers import SentenceTransformer
 
 from frink_embeddings_web.model import Query, Feature, TextFeature, NodeFeature
+from frink_embeddings_web.errors import URINotFoundError
 
 
 def embed_text(text: str, model: SentenceTransformer) -> np.ndarray:
@@ -32,7 +33,7 @@ def get_embedding(
                 with_vectors=True,
             )
             if not points:
-                raise ValueError(f"IRI not found: {feature.value}")
+                raise URINotFoundError(f"URI not found: {feature.value}")
             vec = points[0].vector
             return np.array(vec, dtype=np.float32)
         case _:

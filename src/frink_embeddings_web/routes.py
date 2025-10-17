@@ -3,11 +3,13 @@ from pydantic import ValidationError
 from qdrant_client.models import ScoredPoint
 
 from frink_embeddings_web.context import get_ctx
+from frink_embeddings_web.errors import URINotFoundError
 from frink_embeddings_web.model import Query
 from frink_embeddings_web.query import run_similarity_search
 
 api = Blueprint("api", __name__)
 web = Blueprint("web", __name__)
+
 
 def serialize_point(p: ScoredPoint) -> dict:
     return {
@@ -45,12 +47,10 @@ def post_query():
             collection_name=ctx.collection,
             limit=limit,
         )
+    except URINotFoundError as e:
+        return jsonify({"error": str(e)}), 404
     except ValueError as e:
-        # Return 404 on missing IRI, else 400 for other ValueErrors
-        msg = str(e)
-        if msg.startswith("IRI not found"):
-            return jsonify({"error": msg}), 404
-        return jsonify({"error": msg}), 400
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": "internal error", "message": str(e)}), 500
 
