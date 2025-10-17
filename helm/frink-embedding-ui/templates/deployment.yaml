@@ -6,6 +6,8 @@ metadata:
     {{- include "frink-embedding-ui.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "frink-embedding-ui.selectorLabels" . | nindent 6 }}
@@ -41,21 +43,25 @@ spec:
               value: {{ .Values.env.model }}
             - name: "SENTENCE_TRANSFORMERS_HOME"
               value: {{ .Values.env.sentenceTransformersHome }}
+            - name: SCRIPT_NAME
+              value: {{ .Values.env.webPath }}
           command:
-            - /bin/sh
-          tty: true
-          stdin: true
+            - .venv/bin/gunicorn
+          args:
+            - -b
+            - 0.0.0.0:5000
+            - src.frink_embeddings_web:app
           ports:
             - name: http
               containerPort: 5000
               protocol: TCP
 {{/*          livenessProbe:*/}}
 {{/*            httpGet:*/}}
-{{/*              path: /*/}}
+{{/*              path: {{.Values.env.webPath }}*/}}
 {{/*              port: http*/}}
 {{/*          readinessProbe:*/}}
 {{/*            httpGet:*/}}
-{{/*              path: /*/}}
+{{/*              path: {{.Values.env.webPath }}*/}}
 {{/*              port: http*/}}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
