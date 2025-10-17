@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, jsonify, render_template, request
 from pydantic import ValidationError
 from qdrant_client.models import ScoredPoint
 
@@ -17,6 +17,7 @@ def serialize_point(p: ScoredPoint) -> dict:
         "score": float(p.score) if p.score is not None else None,
         "payload": p.payload or {},
     }
+
 
 @api.post("/query")
 def post_query():
@@ -56,17 +57,21 @@ def post_query():
 
     return jsonify({"results": [serialize_point(p) for p in points]})
 
+
 @web.get("/")
 def index():
     return render_template("index.html")
+
 
 @web.get("/feature-row")
 def feature_row():
     return render_template("partials/feature_row.html")
 
+
 @web.get("/noop")
 def noop():
     return ""
+
 
 @web.post("/query-view")
 def post_query_view():
@@ -78,7 +83,7 @@ def post_query_view():
     positives = []
     negatives = []
 
-    for t, v, s in zip(types, values, signs):
+    for t, v, s in zip(types, values, signs, strict=True):
         t_norm = "text" if str(t).lower().startswith("text") else "node"
         feature = {"type": t_norm, "value": v}
         if str(s).lower().startswith("pos"):
@@ -87,7 +92,11 @@ def post_query_view():
             negatives.append(feature)
 
     if not positives:
-        return render_template("partials/results_table.html", results=[], error="At least one positive feature is required."), 400
+        return render_template(
+            "partials/results_table.html",
+            results=[],
+            error="At least one positive feature is required.",
+        ), 400
 
     data = {
         "positive": positives,
@@ -98,7 +107,9 @@ def post_query_view():
     try:
         q = Query.model_validate(data)
     except ValidationError:
-        return render_template("partials/results_table.html", results=[], error="Invalid request."), 400
+        return render_template(
+            "partials/results_table.html", results=[], error="Invalid request."
+        ), 400
 
     ctx = get_ctx()
     try:
@@ -112,9 +123,15 @@ def post_query_view():
     except ValueError as e:
         msg = str(e)
         status = 404 if msg.startswith("IRI not found") else 400
-        return render_template("partials/results_table.html", results=[], error=msg), status
+        return render_template(
+            "partials/results_table.html", results=[], error=msg
+        ), status
     except Exception as e:
-        return render_template("partials/results_table.html", results=[], error=f"internal error: {e}"), 500
+        return render_template(
+            "partials/results_table.html",
+            results=[],
+            error=f"internal error: {e}",
+        ), 500
 
     results = [serialize_point(p) for p in points]
     return render_template("partials/results_table.html", results=results)

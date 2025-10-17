@@ -1,10 +1,10 @@
 import numpy as np
 from qdrant_client import QdrantClient
-from qdrant_client.models import Filter, FieldCondition, MatchValue, ScoredPoint
+from qdrant_client.models import FieldCondition, Filter, MatchValue, ScoredPoint
 from sentence_transformers import SentenceTransformer
 
-from frink_embeddings_web.model import Query, Feature, TextFeature, NodeFeature
 from frink_embeddings_web.errors import URINotFoundError
+from frink_embeddings_web.model import Feature, NodeFeature, Query, TextFeature
 
 
 def embed_text(text: str, model: SentenceTransformer) -> np.ndarray:
@@ -26,7 +26,9 @@ def get_embedding(
                 collection_name=collection_name,
                 scroll_filter=Filter(
                     must=[
-                        FieldCondition(key="iri", match=MatchValue(value=feature.value))
+                        FieldCondition(
+                            key="iri", match=MatchValue(value=feature.value)
+                        )
                     ]
                 ),
                 limit=1,
@@ -84,5 +86,3 @@ def run_similarity_search(
         with_payload=True,
         limit=limit,
     )
-
-
