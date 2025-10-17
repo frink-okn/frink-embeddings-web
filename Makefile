@@ -4,6 +4,10 @@ DOCKER_NAME ?= frink-web
 dev:
 	uv run flask --app frink_embeddings_web.app run --debug
 
+.PHONY: dev-gunicorn
+dev-gunicorn:
+	uv run gunicorn frink_embeddings_web.app:app
+
 .PHONY: docker-build
 docker-build:
 	docker build -t $(DOCKER_NAME) .

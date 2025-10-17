@@ -16,6 +16,8 @@ Configuration (env vars)
 - NUM_WORKERS: Number of gunicorn workers to use (default 4)
 - DEBUG: Set to "1" to enable Flask debug
 
+To host under a subdirectory (gunicorn only), set the SCRIPT_NAME environment variable.
+
 # Running
 
 To run a local server using Flask, run:

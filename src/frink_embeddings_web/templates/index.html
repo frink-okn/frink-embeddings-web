@@ -33,14 +33,18 @@
   <main>
     <h1 style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;">Frink Embeddings Query</h1>
 
-    <form hx-post="/query-view" hx-target="#results" hx-swap="innerHTML" hx-disabled-elt="#submit-btn">
+    <form
+      hx-post="{{ url_for('web.post_query_view') }}"
+      hx-target="#results" hx-swap="innerHTML"
+      hx-disabled-elt="#submit-btn"
+    >
       <div id="features">
         {% include "partials/feature_row.html" %}
       </div>
 
       <div style="margin: 8px 0;">
         <button type="button"
-                hx-get="/feature-row"
+                hx-get="{{ url_for('web.feature_row') }}"
                 hx-target="#features"
                 hx-swap="beforeend">
           Add feature
