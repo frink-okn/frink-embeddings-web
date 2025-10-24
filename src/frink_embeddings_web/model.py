@@ -6,13 +6,11 @@ from pydantic import BaseModel, Field
 class TextFeature(BaseModel):
     type: Literal["text"]
     value: str
-    weight: float = 1
 
 
 class NodeFeature(BaseModel):
     type: Literal["node"]
     value: str
-    weight: float = 1
 
 
 Feature = Annotated[
@@ -22,6 +20,5 @@ Feature = Annotated[
 
 
 class Query(BaseModel):
-    positive: list[Feature]
-    negative: list[Feature]
+    feature: Feature
     graphs: list[str] | None

@@ -23,14 +23,6 @@ def serialize_point(p: ScoredPoint) -> dict:
 def post_query():
     data = request.get_json(silent=True) or {}
 
-    # Allow missing negatives by defaulting to empty list
-    if "negative" not in data:
-        data["negative"] = []
-
-    # Require at least one positive feature
-    if not data.get("positive"):
-        return jsonify({"error": "positive features required"}), 400
-
     limit = int(data.get("limit", 10))
 
     try:
@@ -76,32 +68,13 @@ def noop():
 @web.post("/query-view")
 def post_query_view():
     form = request.form
-    types = form.getlist("feat_type[]")
-    values = form.getlist("feat_value[]")
-    signs = form.getlist("feat_sign[]")
-
-    positives = []
-    negatives = []
-
-    for t, v, s in zip(types, values, signs, strict=True):
-        t_norm = "text" if str(t).lower().startswith("text") else "node"
-        feature = {"type": t_norm, "value": v}
-        if str(s).lower().startswith("pos"):
-            positives.append(feature)
-        else:
-            negatives.append(feature)
-
-    if not positives:
-        return render_template(
-            "partials/results_table.html",
-            results=[],
-            error="At least one positive feature is required.",
-        ), 400
 
     data = {
-        "positive": positives,
-        "negative": negatives,
-        "graphs": None,
+        "feature": {
+            "type": form.get("feat_type"),
+            "value": form.get("feat_value"),
+        },
+        "graphs": form.getlist("graphs[]"),
     }
 
     try:
