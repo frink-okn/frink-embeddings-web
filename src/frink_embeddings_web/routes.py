@@ -40,12 +40,15 @@ def post_query():
             collection_name=ctx.collection,
             limit=limit,
         )
-    except URINotFoundError as e:
-        return jsonify({"error": str(e)}), 404
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
     except Exception as e:
-        return jsonify({"error": "internal error", "message": str(e)}), 500
+        match e:
+            case URINotFoundError():
+                status = 404
+            case ValueError():
+                status = 400
+            case _:
+                status = 500
+        return jsonify({"error": str(e)}), status
 
     return jsonify({"results": [serialize_point(p) for p in points]})
 
@@ -81,7 +84,9 @@ def post_query_view():
         q = Query.model_validate(data)
     except ValidationError:
         return render_template(
-            "partials/results_table.html", results=[], error="Invalid request."
+            "partials/results_table.html",
+            results=[],
+            error="Invalid query.",
         ), 400
 
     ctx = get_ctx()
@@ -93,18 +98,19 @@ def post_query_view():
             collection_name=ctx.collection,
             limit=int(form.get("limit", 10)),
         )
-    except ValueError as e:
-        msg = str(e)
-        status = 404 if msg.startswith("IRI not found") else 400
-        return render_template(
-            "partials/results_table.html", results=[], error=msg
-        ), status
     except Exception as e:
+        match e:
+            case URINotFoundError():
+                status = 404
+            case ValueError():
+                status = 400
+            case _:
+                status = 500
         return render_template(
             "partials/results_table.html",
             results=[],
-            error=f"internal error: {e}",
-        ), 500
+            error=str(e),
+        ), status
 
     results = [serialize_point(p) for p in points]
     return render_template("partials/results_table.html", results=results)
