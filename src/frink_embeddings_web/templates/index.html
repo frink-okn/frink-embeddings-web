@@ -5,17 +5,17 @@
   <title>Frink Embeddings Query</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://unpkg.com/htmx.org@2.0.8/dist/htmx.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/htmx-ext-response-targets@2.0.4" integrity="sha384-T41oglUPvXLGBVyRdZsVRxNWnOOqCynaPubjUVjxhsjFTKrFJGEMm3/0KGmNQ+Pg" crossorigin="anonymous"></script>
   <script src="{{ url_for('static', filename='index.js') }}"></script>
 </head>
-<body>
+<body hx-ext="response-targets">
   <main>
     <h1 style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;">Frink Embeddings Query</h1>
 
     <form
       hx-post="{{ url_for('web.post_query_view') }}"
-      hx-target="#results"
-      hx-swap="innerHTML"
+      hx-target-*="#results"
       hx-disabled-elt="#submit-btn"
       hx-on:htmx-config-request="Frink.updateQueryParams()"
     >
@@ -23,12 +23,12 @@
         <div class="feature-row">
           <select name="feat_type">
             <option
-              value="Text"
-              {% if feature_type != "Node URI" %}selected{% endif %}
+              value="text"
+              {% if feature_type != "node" %}selected{% endif %}
             >Text</option>
             <option
-              value="Node URI"
-              {% if feature_type == "Node URI" %}selected{% endif %}
+              value="node"
+              {% if feature_type == "node" %}selected{% endif %}
             >Node URI</option>
           </select>
 

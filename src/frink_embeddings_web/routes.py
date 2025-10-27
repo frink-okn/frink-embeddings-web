@@ -1,5 +1,7 @@
+import httpx
 from flask import Blueprint, jsonify, render_template, request
 from pydantic import ValidationError
+from qdrant_client.http.exceptions import ResponseHandlingException
 from qdrant_client.models import ScoredPoint
 
 from frink_embeddings_web.context import get_ctx
@@ -17,6 +19,32 @@ def serialize_point(p: ScoredPoint) -> dict:
         "score": float(p.score) if p.score is not None else None,
         "payload": p.payload or {},
     }
+
+
+def unwrap_qdrant_error(e: Exception) -> Exception:
+    is_qdrant_wrapped = (
+        isinstance(e, ResponseHandlingException)
+        and e.args
+        and isinstance(e.args[0], Exception)
+    )
+
+    return e.args[0] if is_qdrant_wrapped else e
+
+
+def parse_error(e: Exception):
+    inner = unwrap_qdrant_error(e)
+    msg = str(inner)
+    match inner:
+        case URINotFoundError():
+            status = 404
+        case httpx.ConnectError():
+            status = 500
+            msg = "Could not connect to Qdrant server"
+        case ValueError():
+            status = 400
+        case _:
+            status = 500
+    return msg, status
 
 
 @api.post("/query")
@@ -41,14 +69,8 @@ def post_query():
             limit=limit,
         )
     except Exception as e:
-        match e:
-            case URINotFoundError():
-                status = 404
-            case ValueError():
-                status = 400
-            case _:
-                status = 500
-        return jsonify({"error": str(e)}), status
+        msg, status = parse_error(e)
+        return jsonify({"error": msg}), status
 
     return jsonify({"results": [serialize_point(p) for p in points]})
 
@@ -95,17 +117,11 @@ def post_query_view():
             limit=int(form.get("limit", 10)),
         )
     except Exception as e:
-        match e:
-            case URINotFoundError():
-                status = 404
-            case ValueError():
-                status = 400
-            case _:
-                status = 500
+        msg, status = parse_error(e)
         return render_template(
             "partials/results_table.html",
             results=[],
-            error=str(e),
+            error=msg,
         ), status
 
     results = [serialize_point(p) for p in points]
