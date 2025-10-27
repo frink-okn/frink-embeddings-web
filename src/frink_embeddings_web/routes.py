@@ -55,17 +55,13 @@ def post_query():
 
 @web.get("/")
 def index():
-    return render_template("index.html")
-
-
-@web.get("/feature-row")
-def feature_row():
-    return render_template("partials/feature_row.html")
-
-
-@web.get("/noop")
-def noop():
-    return ""
+    feature_type = request.args.get("type", "Text")
+    feature_value = request.args.get("value", "")
+    return render_template(
+        "index.html",
+        feature_type=feature_type,
+        feature_value=feature_value,
+    )
 
 
 @web.post("/query-view")

@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="{{ url_for('static', filename='index.js') }}"></script>
 </head>
 <body>
   <main>
@@ -13,20 +14,31 @@
 
     <form
       hx-post="{{ url_for('web.post_query_view') }}"
-      hx-target="#results" hx-swap="innerHTML"
+      hx-target="#results"
+      hx-swap="innerHTML"
       hx-disabled-elt="#submit-btn"
+      hx-on:htmx-config-request="Frink.updateQueryParams()"
     >
       <div id="features">
-        {% include "partials/feature_row.html" %}
-      </div>
+        <div class="feature-row">
+          <select name="feat_type">
+            <option
+              value="Text"
+              {% if feature_type != "Node URI" %}selected{% endif %}
+            >Text</option>
+            <option
+              value="Node URI"
+              {% if feature_type == "Node URI" %}selected{% endif %}
+            >Node URI</option>
+          </select>
 
-      <div style="margin: 8px 0;">
-        <button type="button"
-                hx-get="{{ url_for('web.feature_row') }}"
-                hx-target="#features"
-                hx-swap="beforeend">
-          Add feature
-        </button>
+          <input
+            type="text"
+            name="feat_value"
+            value="{{ feature_value }}"
+            placeholder="Enter text or node IRI"
+          >
+        </div>
       </div>
 
       <div style="margin: 8px 0;">
