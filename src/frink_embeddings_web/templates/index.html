@@ -4,30 +4,8 @@
   <meta charset="utf-8">
   <title>Frink Embeddings Query</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-  <style>
-    /* Basic CSS reset */
-    *, *::before, *::after { box-sizing: border-box; }
-    html, body, div, span, h1, h2, h3, h4, h5, h6, p, blockquote, pre,
-    a, code, em, img, small, strong, sub, sup, b, u, i, center,
-    dl, dt, dd, ol, ul, li, fieldset, form, label, legend,
-    table, caption, tbody, tfoot, thead, tr, th, td,
-    article, aside, canvas, details, embed, figure, figcaption,
-    footer, header, menu, nav, output, ruby, section, summary,
-    time, mark, audio, video {
-      margin: 0; padding: 0; border: 0; font: inherit; vertical-align: baseline;
-    }
-    body { line-height: 1.4; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, sans-serif; }
-
-    /* Minimal layout tweaks, not styling */
-    .feature-row { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
-    button { cursor: pointer; }
-    select, input[type="text"] { padding: 2px 4px; }
-
-    /* Loading message visibility driven by htmx request state on the form */
-    .loading { display: none; }
-    form.htmx-request .loading { display: inline; }
-  </style>
 </head>
 <body>
   <main>
