@@ -22,3 +22,5 @@ Feature = Annotated[
 class Query(BaseModel):
     feature: Feature
     graphs: list[str] | None
+    limit: int = 10
+    offset: int = 0

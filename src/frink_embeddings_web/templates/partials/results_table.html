@@ -1,6 +1,8 @@
-{% if error %}
-<div role="alert">{{ error }}</div>
-{% elif results and results|length > 0 %}
+<div id="errors" role="alert" hx-swap-oob="true">
+{% if error %}{{ error }}{% endif %}
+</div>
+
+{% if results and results|length > 0 %}
 <table>
   <thead>
     <tr>
@@ -31,6 +33,32 @@
   {% endfor %}
   </tbody>
 </table>
+
+<div class="pagination">
+  <button
+    class="submit-req"
+    hx-post="{{ url_for('web.post_query_view') }}"
+    hx-target="#results"
+    hx-target-error="#errors"
+    hx-disabled-elt=".submit-req"
+    hx-indicator="form"
+    hx-vals='{ "offset": {{ query.offset - query.limit if query.offset >= query.limit else 0 }} }'
+    {% if query.offset == 0 %}disabled{% endif %}
+  >
+    Prev
+  </button>
+  <button
+    class="submit-req"
+    hx-post="{{ url_for('web.post_query_view') }}"
+    hx-target="#results"
+    hx-target-error="#errors"
+    hx-disabled-elt=".submit-req"
+    hx-indicator="form"
+    hx-vals='{ "offset": {{ query.offset + query.limit }} }'
+  >
+    Next
+  </button>
+</div>
 {% else %}
 <p>No results.</p>
 {% endif %}

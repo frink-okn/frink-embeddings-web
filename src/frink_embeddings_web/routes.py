@@ -51,8 +51,6 @@ def parse_error(e: Exception):
 def post_query():
     data = request.get_json(silent=True) or {}
 
-    limit = int(data.get("limit", 10))
-
     try:
         q = Query.model_validate(data)
     except ValidationError as e:
@@ -66,7 +64,6 @@ def post_query():
             client=ctx.client,
             model=ctx.model,
             collection_name=ctx.collection,
-            limit=limit,
         )
     except Exception as e:
         msg, status = parse_error(e)
@@ -96,6 +93,8 @@ def post_query_view():
             "value": form.get("feat_value"),
         },
         "graphs": form.getlist("graphs[]"),
+        "limit": form.get("limit", 10),
+        "offset": form.get("offset", 0),
     }
 
     try:
@@ -114,7 +113,6 @@ def post_query_view():
             client=ctx.client,
             model=ctx.model,
             collection_name=ctx.collection,
-            limit=int(form.get("limit", 10)),
         )
     except Exception as e:
         msg, status = parse_error(e)
@@ -125,4 +123,8 @@ def post_query_view():
         ), status
 
     results = [serialize_point(p) for p in points]
-    return render_template("partials/results_table.html", results=results)
+    return render_template(
+        "partials/results_table.html",
+        results=results,
+        query=q,
+    )

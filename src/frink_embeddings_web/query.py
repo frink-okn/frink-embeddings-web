@@ -47,7 +47,6 @@ def run_similarity_search(
     client: QdrantClient,
     model: SentenceTransformer,
     collection_name: str,
-    limit: int = 10,
 ) -> list[ScoredPoint]:
     vector = get_embedding(query_obj.feature, client, model, collection_name)
 
@@ -55,5 +54,6 @@ def run_similarity_search(
         collection_name=collection_name,
         query_vector=vector.tolist(),
         with_payload=True,
-        limit=limit,
+        limit=query_obj.limit,
+        offset=query_obj.offset,
     )

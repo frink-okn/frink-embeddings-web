@@ -15,8 +15,9 @@
 
     <form
       hx-post="{{ url_for('web.post_query_view') }}"
-      hx-target-*="#results"
-      hx-disabled-elt="#submit-btn"
+      hx-target="#results"
+      hx-target-error="#errors"
+      hx-disabled-elt=".submit-req"
       hx-on:htmx-config-request="Frink.updateQueryParams()"
     >
       <div id="features">
@@ -42,12 +43,14 @@
       </div>
 
       <div style="margin: 8px 0;">
-        <button id="submit-btn" type="submit">Submit</button>
+        <button class="submit-req" id="submit-btn" type="submit">Submit</button>
         <span class="loading">loading</span>
       </div>
+
+      <section id="errors" aria-live="polite" style="margin-top: 12px;"></section>
+      <section id="results" aria-live="polite" style="margin-top: 12px;"></section>
     </form>
 
-    <section id="results" aria-live="polite" style="margin-top: 12px;"></section>
   </main>
 </body>
 </html>
