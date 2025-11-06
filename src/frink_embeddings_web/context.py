@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import cast
 
 from flask import Flask, current_app
@@ -11,6 +12,14 @@ class AppContext:
     client: QdrantClient
     collection: str
     model: SentenceTransformer
+    graph_catalog: Path
+
+    @property
+    def graphs(self) -> list[str]:
+        try:
+            return self.graph_catalog.read_text().splitlines()
+        except Exception:
+            return []
 
 
 class WrappedFlask(Flask):
