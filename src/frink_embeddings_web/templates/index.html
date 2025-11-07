@@ -42,6 +42,15 @@
         </div>
       </div>
 
+      <section id="graphs">
+        {% for graph in graphs %}
+          <label>
+            <input type="checkbox" name="graph" value="{{ graph }}" />
+            {{ graph }}
+          </label>
+        {% endfor %}
+      </section>
+
       <div style="margin: 8px 0;">
         <button class="submit-req" id="submit-btn" type="submit">Submit</button>
         <span class="loading">loading</span>

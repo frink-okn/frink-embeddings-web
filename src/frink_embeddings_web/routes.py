@@ -82,12 +82,17 @@ def post_query():
 
 @web.get("/")
 def index():
+    ctx = get_ctx()
+
     feature_type = request.args.get("type", "Text")
     feature_value = request.args.get("value", "")
+    graphs = ctx.graphs
+
     return render_template(
         "index.html",
         feature_type=feature_type,
         feature_value=feature_value,
+        graphs=graphs,
     )
 
 
@@ -100,7 +105,7 @@ def post_query_view():
             "type": form.get("feat_type"),
             "value": form.get("feat_value"),
         },
-        "graphs": form.getlist("graphs[]"),
+        "graphs": form.getlist("graph"),
         "limit": form.get("limit", 10),
         "offset": form.get("offset", 0),
     }

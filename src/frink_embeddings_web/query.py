@@ -1,6 +1,12 @@
 import numpy as np
 from qdrant_client import QdrantClient
-from qdrant_client.models import FieldCondition, Filter, MatchValue, ScoredPoint
+from qdrant_client.models import (
+    FieldCondition,
+    Filter,
+    MatchAny,
+    MatchValue,
+    ScoredPoint,
+)
 from sentence_transformers import SentenceTransformer
 
 from frink_embeddings_web.errors import URINotFoundError
@@ -50,9 +56,21 @@ def run_similarity_search(
 ) -> list[ScoredPoint]:
     vector = get_embedding(query_obj.feature, client, model, collection_name)
 
+    graph_filter: Filter | None = None
+
+    if query_obj.graphs:
+        graph_filter = Filter(
+            must=[
+                FieldCondition(
+                    key="graph", match=MatchAny(any=query_obj.graphs)
+                )
+            ]
+        )
+
     return client.search(
         collection_name=collection_name,
         query_vector=vector.tolist(),
+        query_filter=graph_filter,
         with_payload=True,
         limit=query_obj.limit,
         offset=query_obj.offset,
