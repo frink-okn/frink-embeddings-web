@@ -1,13 +1,18 @@
-from flask import Blueprint, request, jsonify, render_template
+import httpx
+from flask import Blueprint, jsonify, render_template, request
 from pydantic import ValidationError
+from qdrant_client.http.exceptions import ResponseHandlingException
 from qdrant_client.models import ScoredPoint
 
 from frink_embeddings_web.context import get_ctx
+from frink_embeddings_web.errors import URINotFoundError
+from frink_embeddings_web.graphs import update_graph_catalog
 from frink_embeddings_web.model import Query
 from frink_embeddings_web.query import run_similarity_search
 
 api = Blueprint("api", __name__)
 web = Blueprint("web", __name__)
+
 
 def serialize_point(p: ScoredPoint) -> dict:
     return {
@@ -16,19 +21,43 @@ def serialize_point(p: ScoredPoint) -> dict:
         "payload": p.payload or {},
     }
 
+
+def unwrap_qdrant_error(e: Exception) -> Exception:
+    is_qdrant_wrapped = (
+        isinstance(e, ResponseHandlingException)
+        and e.args
+        and isinstance(e.args[0], Exception)
+    )
+
+    return e.args[0] if is_qdrant_wrapped else e
+
+
+def parse_error(e: Exception):
+    inner = unwrap_qdrant_error(e)
+    msg = str(inner)
+    match inner:
+        case URINotFoundError():
+            status = 404
+        case httpx.ConnectError():
+            status = 500
+            msg = "Could not connect to Qdrant server"
+        case ValueError():
+            status = 400
+        case _:
+            status = 500
+    return msg, status
+
+
+@api.post("/update-graphs")
+def update_graphs():
+    ctx = get_ctx()
+    update_graph_catalog(ctx)
+    return "", 200
+
+
 @api.post("/query")
 def post_query():
     data = request.get_json(silent=True) or {}
-
-    # Allow missing negatives by defaulting to empty list
-    if "negative" not in data:
-        data["negative"] = []
-
-    # Require at least one positive feature
-    if not data.get("positive"):
-        return jsonify({"error": "positive features required"}), 400
-
-    limit = int(data.get("limit", 10))
 
     try:
         q = Query.model_validate(data)
@@ -43,62 +72,52 @@ def post_query():
             client=ctx.client,
             model=ctx.model,
             collection_name=ctx.collection,
-            limit=limit,
         )
-    except ValueError as e:
-        # Return 404 on missing IRI, else 400 for other ValueErrors
-        msg = str(e)
-        if msg.startswith("IRI not found"):
-            return jsonify({"error": msg}), 404
-        return jsonify({"error": msg}), 400
     except Exception as e:
-        return jsonify({"error": "internal error", "message": str(e)}), 500
+        msg, status = parse_error(e)
+        return jsonify({"error": msg}), status
 
     return jsonify({"results": [serialize_point(p) for p in points]})
 
+
 @web.get("/")
 def index():
-    return render_template("index.html")
+    ctx = get_ctx()
 
-@web.get("/feature-row")
-def feature_row():
-    return render_template("partials/feature_row.html")
+    feature_type = request.args.get("type", "Text")
+    feature_value = request.args.get("value", "")
+    graphs = ctx.graphs
 
-@web.get("/noop")
-def noop():
-    return ""
+    return render_template(
+        "index.html",
+        feature_type=feature_type,
+        feature_value=feature_value,
+        graphs=graphs,
+    )
+
 
 @web.post("/query-view")
 def post_query_view():
     form = request.form
-    types = form.getlist("feat_type[]")
-    values = form.getlist("feat_value[]")
-    signs = form.getlist("feat_sign[]")
-
-    positives = []
-    negatives = []
-
-    for t, v, s in zip(types, values, signs):
-        t_norm = "text" if str(t).lower().startswith("text") else "node"
-        feature = {"type": t_norm, "value": v}
-        if str(s).lower().startswith("pos"):
-            positives.append(feature)
-        else:
-            negatives.append(feature)
-
-    if not positives:
-        return render_template("partials/results_table.html", results=[], error="At least one positive feature is required."), 400
 
     data = {
-        "positive": positives,
-        "negative": negatives,
-        "graphs": None,
+        "feature": {
+            "type": form.get("feat_type"),
+            "value": form.get("feat_value"),
+        },
+        "graphs": form.getlist("graph"),
+        "limit": form.get("limit", 10),
+        "offset": form.get("offset", 0),
     }
 
     try:
         q = Query.model_validate(data)
     except ValidationError:
-        return render_template("partials/results_table.html", results=[], error="Invalid request."), 400
+        return render_template(
+            "partials/results_table.html",
+            results=[],
+            error="Invalid query.",
+        ), 400
 
     ctx = get_ctx()
     try:
@@ -107,14 +126,18 @@ def post_query_view():
             client=ctx.client,
             model=ctx.model,
             collection_name=ctx.collection,
-            limit=int(form.get("limit", 10)),
         )
-    except ValueError as e:
-        msg = str(e)
-        status = 404 if msg.startswith("IRI not found") else 400
-        return render_template("partials/results_table.html", results=[], error=msg), status
     except Exception as e:
-        return render_template("partials/results_table.html", results=[], error=f"internal error: {e}"), 500
+        msg, status = parse_error(e)
+        return render_template(
+            "partials/results_table.html",
+            results=[],
+            error=msg,
+        ), status
 
     results = [serialize_point(p) for p in points]
-    return render_template("partials/results_table.html", results=results)
+    return render_template(
+        "partials/results_table.html",
+        results=results,
+        query=q,
+    )

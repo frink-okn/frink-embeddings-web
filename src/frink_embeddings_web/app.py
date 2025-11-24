@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
@@ -14,6 +15,7 @@ def create_app() -> WrappedFlask:
     qdrant_port = int(os.getenv("QDRANT_PORT", "5554"))
     collection = os.getenv("QDRANT_COLLECTION", "OKN-Graph")
     model_name = os.getenv("SENTENCE_MODEL_NAME", "all-MiniLM-L6-v2")
+    graph_catalog = Path(os.getenv("GRAPH_CATALOG", "graphs.txt"))
 
     # Initialize shared dependencies once
     client = QdrantClient(qdrant_host, port=qdrant_port, timeout=30)
@@ -21,8 +23,9 @@ def create_app() -> WrappedFlask:
 
     ctx = AppContext(
         client=client,
-        model=model,
         collection=collection,
+        model=model,
+        graph_catalog=graph_catalog,
     )
     app.ctx = ctx
 

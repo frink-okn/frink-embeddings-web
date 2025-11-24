@@ -14,7 +14,7 @@ ENV NUM_WORKERS=4
 COPY pyproject.toml uv.lock README.md ./
 
 
-RUN uv sync --frozen -p 3.12
+RUN uv sync --no-dev --frozen -p 3.12
 
 COPY . .
 

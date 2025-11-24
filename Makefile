@@ -15,3 +15,16 @@ docker-build:
 .PHONY: docker-run
 docker-run:
 	docker run --rm -p 8000:8000 $(DOCKER_NAME)
+
+.PHONY: lint
+	uv run ruff check src
+
+.PHONY: lint
+lint:
+	uv run ruff check
+	uv run ruff format --check
+
+.PHONY: format
+format:
+	-uv run ruff check --fix
+	-uv run ruff format
