@@ -1,49 +1,50 @@
-<div id="errors" role="alert" hx-swap-oob="true">
-{% if error %}{{ error }}{% endif %}
-</div>
+<div id="errors" class="alert" role="alert" hx-swap-oob="true">{% if error %}{{ error }}{% endif %}</div>
 
 {% if results and results|length > 0 %}
-<table>
-  <thead>
-    <tr>
-      <th>Label</th>
-      <th>Node URI</th>
-      <th>Graph</th>
-      <th>Match Score</th>
-      <th>Open SPARQL query</th>
-    </tr>
-  </thead>
-  <tbody>
-  {% for r in results %}
-    <tr>
-      <td>{{ r.payload.label or "" }}</td>
-      <td>
-        {% if r.payload.iri %}
-          <a href="{{ r.payload.iri }}">{{ r.payload.iri }}</a>
-        {% else %}
-          {{ "" }}
-        {% endif %}
-      </td>
-      <td>{{ r.payload.graph or "" }}</td>
-      <td>
-        {% if r.score is not none %}
-          {{ '%.4f' | format(r.score) }}
-        {% else %}
-          {{ "" }}
-        {% endif %}
-      </td>
-      <td>
-        <a
-          href="https://frink.apps.renci.org/?query=SELECT%20%3Fs%20%3Fp%20%3Fo%20WHERE%20%7B%0A%20%20BIND(%3C{{ r.payload.iri|urlencode }}%3E%20as%20%3Fs)%0A%20%20%3Fs%20%3Fp%20%3Fo%20.%0A%7D"
-          target="_blank"
-        >
-          search
-        </a>
-      </td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
+<div class="table-wrap">
+  <table class="results-table">
+    <thead>
+      <tr>
+        <th>Label</th>
+        <th>Node URI</th>
+        <th>Graph</th>
+        <th>Match Score</th>
+        <th>Open SPARQL query</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in results %}
+      <tr>
+        <td title="{{ r.payload.label or '' }}">{{ r.payload.label or "" }}</td>
+        <td>
+          {% if r.payload.iri %}
+            <a class="mono" href="{{ r.payload.iri }}" title="{{ r.payload.iri }}">{{ r.payload.iri }}</a>
+          {% else %}
+            {{ "" }}
+          {% endif %}
+        </td>
+        <td title="{{ r.payload.graph or '' }}">{{ r.payload.graph or "" }}</td>
+        <td>
+          {% if r.score is not none %}
+            {{ '%.4f' | format(r.score) }}
+          {% else %}
+            {{ "" }}
+          {% endif %}
+        </td>
+        <td>
+          <a
+            href="https://frink.apps.renci.org/?query=SELECT%20%3Fs%20%3Fp%20%3Fo%20WHERE%20%7B%0A%20%20BIND(%3C{{ r.payload.iri|urlencode }}%3E%20as%20%3Fs)%0A%20%20%3Fs%20%3Fp%20%3Fo%20.%0A%7D"
+            target="_blank"
+            rel="noreferrer"
+          >
+            search
+          </a>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
 
 <div class="pagination">
   <button
@@ -52,7 +53,9 @@
     hx-target="#results"
     hx-target-error="#errors"
     hx-disabled-elt=".submit-req"
-    hx-indicator="form"
+    hx-include=".query-form"
+    hx-indicator=".query-form"
+    hx-on:htmx-config-request="Frink.updateQueryParams()"
     hx-vals='{ "offset": {{ query.offset - query.limit if query.offset >= query.limit else 0 }} }'
     {% if query.offset == 0 %}disabled{% endif %}
   >
@@ -64,7 +67,9 @@
     hx-target="#results"
     hx-target-error="#errors"
     hx-disabled-elt=".submit-req"
-    hx-indicator="form"
+    hx-include=".query-form"
+    hx-indicator=".query-form"
+    hx-on:htmx-config-request="Frink.updateQueryParams()"
     hx-vals='{ "offset": {{ query.offset + query.limit }} }'
   >
     Next

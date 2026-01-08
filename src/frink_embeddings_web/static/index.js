@@ -1,8 +1,12 @@
 function updateQueryParams() {
   const url = new URL(window.location.toString());
   const params = url.searchParams;
-  const featureType = document.querySelector("#features [name='feat_type']").value
-  const featureValue = document.querySelector("#features [name='feat_value']").value
+
+  const featureTypeEl = document.querySelector("[name='feat_type']");
+  const featureValueEl = document.querySelector("[name='feat_value']");
+
+  const featureType = featureTypeEl ? featureTypeEl.value : "";
+  const featureValue = featureValueEl ? featureValueEl.value : "";
 
   if (featureType) {
     params.set("type", featureType)

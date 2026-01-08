@@ -4,62 +4,109 @@
   <meta charset="utf-8">
   <title>Frink Embeddings Query</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+  <!-- Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
   <script src="https://unpkg.com/htmx.org@2.0.8/dist/htmx.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/htmx-ext-response-targets@2.0.4" integrity="sha384-T41oglUPvXLGBVyRdZsVRxNWnOOqCynaPubjUVjxhsjFTKrFJGEMm3/0KGmNQ+Pg" crossorigin="anonymous"></script>
   <script src="{{ url_for('static', filename='index.js') }}"></script>
 </head>
 <body hx-ext="response-targets">
-  <main>
-    <h1 style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;">Frink Embeddings Query</h1>
-
-    <form
-      hx-post="{{ url_for('web.post_query_view') }}"
-      hx-target="#results"
-      hx-target-error="#errors"
-      hx-disabled-elt=".submit-req"
-      hx-on:htmx-config-request="Frink.updateQueryParams()"
-    >
-      <div id="features">
-        <div class="feature-row">
-          <select name="feat_type">
-            <option
-              value="text"
-              {% if feature_type != "node" %}selected{% endif %}
-            >Text</option>
-            <option
-              value="node"
-              {% if feature_type == "node" %}selected{% endif %}
-            >Node URI</option>
-          </select>
-
-          <input
-            type="text"
-            name="feat_value"
-            value="{{ feature_value }}"
-            placeholder="Enter text or node IRI"
-          >
-        </div>
+  <div class="app">
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-title">FRINK</div>
+        <div class="brand-subtitle">Embeddings Query</div>
       </div>
+    </header>
 
-      <section id="graphs">
-        {% for graph in graphs %}
-          <label>
-            <input type="checkbox" name="graph" value="{{ graph }}" />
-            {{ graph }}
-          </label>
-        {% endfor %}
+    <main class="app-main">
+      <h1 class="sr-only">Frink Embeddings Query</h1>
+
+      <section class="card query-card" aria-label="Query">
+        <form
+          class="query-form"
+          hx-post="{{ url_for('web.post_query_view') }}"
+          hx-target="#results"
+          hx-target-error="#errors"
+          hx-disabled-elt=".submit-req"
+          hx-on:htmx-config-request="Frink.updateQueryParams()"
+        >
+          <div class="query-grid">
+            <div class="field">
+              <label class="label" for="feat_type">Feature type</label>
+              <select id="feat_type" name="feat_type">
+                <option
+                  value="text"
+                  {% if feature_type != "node" %}selected{% endif %}
+                >Text</option>
+                <option
+                  value="node"
+                  {% if feature_type == "node" %}selected{% endif %}
+                >Node URI</option>
+              </select>
+            </div>
+
+            <div class="field grow">
+              <label class="label" for="feat_value">Feature value</label>
+              <input
+                id="feat_value"
+                type="text"
+                name="feat_value"
+                value="{{ feature_value }}"
+                placeholder="Enter text or node IRI"
+              >
+            </div>
+
+            <div class="field actions">
+              <label class="label" aria-hidden="true">Actions</label>
+              <div class="actions-row">
+                <button class="btn btn-primary submit-req" id="submit-btn" type="submit">Search</button>
+                <span class="loading" role="status" aria-live="polite">Searching…</span>
+              </div>
+            </div>
+          </div>
+
+          <section id="graphs" class="graphs" aria-label="Graphs">
+            <div class="graphs-header">
+              <div class="label">Graphs</div>
+              <div class="muted">Select one or more</div>
+            </div>
+            <div class="graphs-list">
+              {% for graph in graphs %}
+                <label class="graph-item">
+                  <input type="checkbox" name="graph" value="{{ graph }}" />
+                  <span>{{ graph }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </section>
+
+          <section id="errors" class="alert" aria-live="polite"></section>
+        </form>
       </section>
 
-      <div style="margin: 8px 0;">
-        <button class="submit-req" id="submit-btn" type="submit">Submit</button>
-        <span class="loading">loading</span>
+      <section class="card results-card" aria-label="Results">
+        <div class="results-header">
+          <div class="results-title">Results</div>
+          <div class="muted">Matches will appear below</div>
+        </div>
+        <section id="results" aria-live="polite"></section>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <div class="footer-inner">
+        <a href="https://github.com/frink-okn/frink-embeddings-web" target="_blank" rel="noreferrer">Source code</a>
+        <span class="footer-sep">•</span>
+        <a href="https://qdrant.tech/" target="_blank" rel="noreferrer">Powered by Qdrant</a>
       </div>
-
-      <section id="errors" aria-live="polite" style="margin-top: 12px;"></section>
-      <section id="results" aria-live="polite" style="margin-top: 12px;"></section>
-    </form>
-
-  </main>
+    </footer>
+  </div>
 </body>
 </html>
