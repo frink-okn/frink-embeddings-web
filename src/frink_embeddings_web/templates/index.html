@@ -28,51 +28,16 @@
     <main class="app-main">
       <h1 class="sr-only">Frink Embeddings Query</h1>
 
-      <section class="card query-card" aria-label="Query">
-        <form
-          class="query-form"
-          hx-post="{{ url_for('web.post_query_view') }}"
-          hx-target="#results"
-          hx-target-error="#errors"
-          hx-disabled-elt=".submit-req"
-          hx-on:htmx-config-request="Frink.updateQueryParams()"
-        >
-          <div class="query-grid">
-            <div class="field">
-              <label class="label" for="feat_type">Feature type</label>
-              <select id="feat_type" name="feat_type">
-                <option
-                  value="text"
-                  {% if feature_type != "node" %}selected{% endif %}
-                >Text</option>
-                <option
-                  value="node"
-                  {% if feature_type == "node" %}selected{% endif %}
-                >Node URI</option>
-              </select>
-            </div>
-
-            <div class="field grow">
-              <label class="label" for="feat_value">Feature value</label>
-              <input
-                id="feat_value"
-                type="text"
-                name="feat_value"
-                value="{{ feature_value }}"
-                placeholder="Enter text or node IRI"
-              >
-            </div>
-
-            <div class="field actions">
-              <label class="label" aria-hidden="true">Actions</label>
-              <div class="actions-row">
-                <button class="btn btn-primary submit-req" id="submit-btn" type="submit">Search</button>
-                <span class="loading" role="status" aria-live="polite">Searching…</span>
-              </div>
-            </div>
-          </div>
-
-          <section id="graphs" class="graphs" aria-label="Graphs">
+      <form
+        class="query-form"
+        hx-post="{{ url_for('web.post_query_view') }}"
+        hx-target="#results"
+        hx-target-error="#errors"
+        hx-disabled-elt=".submit-req"
+        hx-on:htmx-config-request="Frink.updateQueryParams()"
+      >
+        <div class="page-layout">
+          <aside class="card graphs-panel" aria-label="Graphs">
             <div class="graphs-header">
               <div class="label">Graphs</div>
               <div class="muted">Select one or more</div>
@@ -85,19 +50,58 @@
                 </label>
               {% endfor %}
             </div>
-          </section>
+          </aside>
 
-          <section id="errors" class="alert" aria-live="polite"></section>
-        </form>
-      </section>
+          <div class="page-main">
+            <section class="card query-card" aria-label="Query">
+              <div class="query-grid">
+                <div class="field">
+                  <label class="label" for="feat_type">Feature type</label>
+                  <select id="feat_type" name="feat_type">
+                    <option
+                      value="text"
+                      {% if feature_type != "node" %}selected{% endif %}
+                    >Text</option>
+                    <option
+                      value="node"
+                      {% if feature_type == "node" %}selected{% endif %}
+                    >Node URI</option>
+                  </select>
+                </div>
 
-      <section class="card results-card" aria-label="Results">
-        <div class="results-header">
-          <div class="results-title">Results</div>
-          <div class="muted">Matches will appear below</div>
+                <div class="field grow">
+                  <label class="label" for="feat_value">Feature value</label>
+                  <input
+                    id="feat_value"
+                    type="text"
+                    name="feat_value"
+                    value="{{ feature_value }}"
+                    placeholder="Enter text or node IRI"
+                  >
+                </div>
+
+                <div class="field actions">
+                  <label class="label" aria-hidden="true">Actions</label>
+                  <div class="actions-row">
+                    <button class="btn btn-primary submit-req" id="submit-btn" type="submit">Search</button>
+                    <span class="loading" role="status" aria-live="polite">Searching…</span>
+                  </div>
+                </div>
+              </div>
+
+              <section id="errors" class="alert" aria-live="polite"></section>
+            </section>
+
+            <section class="card results-card" aria-label="Results">
+              <div class="results-header">
+                <div class="results-title">Results</div>
+                <div class="muted">Matches will appear below</div>
+              </div>
+              <section id="results" aria-live="polite"></section>
+            </section>
+          </div>
         </div>
-        <section id="results" aria-live="polite"></section>
-      </section>
+      </form>
     </main>
 
     <footer class="app-footer">
