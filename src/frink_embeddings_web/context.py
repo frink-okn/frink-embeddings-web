@@ -17,7 +17,7 @@ class AppContext:
     @property
     def graphs(self) -> list[str]:
         try:
-            return self.graph_catalog.read_text().splitlines()
+            return sorted(self.graph_catalog.read_text().splitlines())
         except Exception:
             return []
 
