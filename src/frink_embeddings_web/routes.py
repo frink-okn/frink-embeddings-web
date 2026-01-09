@@ -1,3 +1,5 @@
+from urllib.parse import quote, unquote
+
 import httpx
 from flask import Blueprint, jsonify, render_template, request
 from pydantic import ValidationError
@@ -15,10 +17,13 @@ web = Blueprint("web", __name__)
 
 
 def serialize_point(p: ScoredPoint) -> dict:
+    payload = p.payload or {}
+
     return {
         "id": str(p.id),
         "score": float(p.score) if p.score is not None else None,
         "payload": p.payload or {},
+        "encoded_uri": quote(unquote(payload.get("iri", "")), safe=""),
     }
 
 
