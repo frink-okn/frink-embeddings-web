@@ -368,6 +368,52 @@ form.htmx-request .loading { display: inline; }
   margin-bottom: 10px;
 }
 
+.graphs-help {
+  margin: -6px 0 10px;
+}
+
+.graphs-mode {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.graphs-reset {
+  margin-left: auto;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.graphs-reset:hover {
+  background: #f3f4f6;
+}
+
+.graphs-mode-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.graphs-mode-option input[type="radio"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--primary);
+}
+
 .graphs-list {
   display: grid;
   grid-template-columns: 1fr;

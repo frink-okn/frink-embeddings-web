@@ -105,15 +105,23 @@ def index():
 def post_query_view():
     form = request.form
 
+    include_graphs = form.getlist("include_graphs")
+    exclude_graphs = form.getlist("exclude_graphs")
+
     data = {
         "feature": {
             "type": form.get("feat_type"),
             "value": form.get("feat_value"),
         },
-        "graphs": form.getlist("graph"),
         "limit": form.get("limit", 10),
         "offset": form.get("offset", 0),
     }
+
+    if include_graphs:
+        data["include_graphs"] = include_graphs
+
+    if exclude_graphs:
+        data["exclude_graphs"] = exclude_graphs
 
     try:
         q = Query.model_validate(data)

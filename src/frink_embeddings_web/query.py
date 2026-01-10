@@ -58,11 +58,20 @@ def run_similarity_search(
 
     graph_filter: Filter | None = None
 
-    if query_obj.graphs:
+    if query_obj.include_graphs:
         graph_filter = Filter(
             must=[
                 FieldCondition(
-                    key="graph", match=MatchAny(any=query_obj.graphs)
+                    key="graph", match=MatchAny(any=query_obj.include_graphs)
+                )
+            ]
+        )
+
+    if query_obj.exclude_graphs:
+        graph_filter = Filter(
+            must_not=[
+                FieldCondition(
+                    key="graph", match=MatchAny(any=query_obj.exclude_graphs)
                 )
             ]
         )

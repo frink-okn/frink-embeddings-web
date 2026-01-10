@@ -62,6 +62,61 @@ function submitQueryForm() {
   form.requestSubmit();
 }
 
+function getGraphMode() {
+  const checked = document.querySelector("input[name='graph_mode']:checked");
+  if (checked instanceof HTMLInputElement) return checked.value;
+  return "include";
+}
+
+function setGraphMode(mode) {
+  const el = document.querySelector(`input[name='graph_mode'][value="${CSS.escape(mode)}"]`);
+  if (el instanceof HTMLInputElement) el.checked = true;
+  syncGraphCheckboxNames();
+  updateGraphsHelpText();
+}
+
+function syncGraphCheckboxNames() {
+  const mode = getGraphMode();
+  document.querySelectorAll(".graphs-list input[type='checkbox']").forEach((el) => {
+    if (el instanceof HTMLInputElement) {
+      el.name = mode === "exclude" ? "exclude_graphs" : "include_graphs";
+    }
+  });
+}
+
+function updateGraphsHelpText() {
+  const help = document.getElementById("graphs-help");
+  if (!(help instanceof HTMLElement)) return;
+
+  help.textContent = "Select none = search all graphs";
+}
+
+document.addEventListener("change", (e) => {
+  const target = e.target;
+  if (!(target instanceof HTMLElement)) return;
+
+  if (target.matches("input[name='graph_mode']")) {
+    syncGraphCheckboxNames();
+    updateGraphsHelpText();
+  }
+});
+
+document.addEventListener("click", (e) => {
+  const target = e.target;
+  if (!(target instanceof HTMLElement)) return;
+
+  if (target.closest("#graphs-reset")) {
+    document.querySelectorAll(".graphs-list input[type='checkbox']").forEach((el) => {
+      if (el instanceof HTMLInputElement) el.checked = false;
+    });
+    submitQueryForm();
+  }
+});
+
+// initial sync
+syncGraphCheckboxNames();
+updateGraphsHelpText();
+
 let activeRowContext = null;
 
 function parseTemplateJson(tmpl) {
@@ -176,13 +231,27 @@ document.addEventListener("click", (e) => {
     }
 
     if (action === "restrict-graph") {
-      const graphInputs = document.querySelectorAll("input[name='graph']");
+      setGraphMode("include");
+
+      const graphInputs = document.querySelectorAll(".graphs-list input[type='checkbox']");
       graphInputs.forEach((el) => {
         if (el instanceof HTMLInputElement) el.checked = false;
       });
 
       if (ctx.graph) {
-        const toCheck = document.querySelector(`input[name='graph'][value="${CSS.escape(ctx.graph)}"]`);
+        const toCheck = document.querySelector(`.graphs-list input[type='checkbox'][value="${CSS.escape(ctx.graph)}"]`);
+        if (toCheck instanceof HTMLInputElement) toCheck.checked = true;
+      }
+
+      submitQueryForm();
+      return;
+    }
+
+    if (action === "exclude-graph") {
+      setGraphMode("exclude");
+
+      if (ctx.graph) {
+        const toCheck = document.querySelector(`.graphs-list input[type='checkbox'][value="${CSS.escape(ctx.graph)}"]`);
         if (toCheck instanceof HTMLInputElement) toCheck.checked = true;
       }
 

@@ -40,12 +40,26 @@
           <aside class="card graphs-panel" aria-label="Graphs">
             <div class="graphs-header">
               <div class="label">Graphs</div>
-              <div class="muted">Select one or more</div>
             </div>
+            <div class="muted graphs-help" id="graphs-help">Select none = search all graphs</div>
+
+            <div class="graphs-mode" role="group" aria-label="Graph filter mode">
+              <label class="graphs-mode-option">
+                <input type="radio" name="graph_mode" value="include" checked>
+                <span>Include</span>
+              </label>
+              <label class="graphs-mode-option">
+                <input type="radio" name="graph_mode" value="exclude">
+                <span>Exclude</span>
+              </label>
+
+              <button type="button" class="graphs-reset" id="graphs-reset">Reset</button>
+            </div>
+
             <div class="graphs-list">
               {% for graph in graphs %}
                 <label class="graph-item">
-                  <input type="checkbox" name="graph" value="{{ graph }}" />
+                  <input type="checkbox" name="include_graphs" value="{{ graph }}" />
                   <span>{{ graph }}</span>
                 </label>
               {% endfor %}
@@ -144,6 +158,9 @@
       </button>
       <button type="button" class="actions-menu-item actions-menu-btn" data-action="restrict-graph">
         Restrict search to this graph
+      </button>
+      <button type="button" class="actions-menu-item actions-menu-btn" data-action="exclude-graph">
+        Exclude this graph
       </button>
       <button type="button" class="actions-menu-item actions-menu-btn" data-action="show-repr">
         Show embedding text
