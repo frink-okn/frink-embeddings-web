@@ -45,11 +45,11 @@
 
             <div class="graphs-mode" role="group" aria-label="Graph filter mode">
               <label class="graphs-mode-option">
-                <input type="radio" name="graph_mode" value="include" checked>
+                <input type="radio" name="graph_mode" value="include" {% if graph_mode != 'exclude' %}checked{% endif %}>
                 <span>Include</span>
               </label>
               <label class="graphs-mode-option">
-                <input type="radio" name="graph_mode" value="exclude">
+                <input type="radio" name="graph_mode" value="exclude" {% if graph_mode == 'exclude' %}checked{% endif %}>
                 <span>Exclude</span>
               </label>
 
@@ -59,7 +59,12 @@
             <div class="graphs-list">
               {% for graph in graphs %}
                 <label class="graph-item">
-                  <input type="checkbox" name="include_graphs" value="{{ graph }}" />
+                  <input
+                    type="checkbox"
+                    name="{% if graph_mode == 'exclude' %}exclude_graphs{% else %}include_graphs{% endif %}"
+                    value="{{ graph }}"
+                    {% if selected_graphs and graph in selected_graphs %}checked{% endif %}
+                  />
                   <span>{{ graph }}</span>
                 </label>
               {% endfor %}

@@ -93,11 +93,16 @@ def index():
     feature_value = request.args.get("value", "")
     graphs = ctx.graphs
 
+    graph_mode = request.args.get("graph-mode", "include")
+    selected_graphs = request.args.getlist("graph")
+
     return render_template(
         "index.html",
         feature_type=feature_type,
         feature_value=feature_value,
         graphs=graphs,
+        graph_mode=graph_mode,
+        selected_graphs=selected_graphs,
     )
 
 

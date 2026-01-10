@@ -20,6 +20,23 @@ function updateQueryParams() {
     params.delete("value")
   }
 
+  // Canonical graph params:
+  // - graph-mode=(include|exclude), omitted when include
+  // - repeated graph=... values for checked graphs
+  const mode = getGraphMode();
+  if (mode && mode !== "include") {
+    params.set("graph-mode", mode);
+  } else {
+    params.delete("graph-mode");
+  }
+
+  params.delete("graph");
+  document.querySelectorAll(".graphs-list input[type='checkbox']").forEach((el) => {
+    if (el instanceof HTMLInputElement && el.checked) {
+      params.append("graph", el.value);
+    }
+  });
+
   window.history.replaceState({}, '', url)
 }
 
@@ -98,6 +115,13 @@ document.addEventListener("change", (e) => {
   if (target.matches("input[name='graph_mode']")) {
     syncGraphCheckboxNames();
     updateGraphsHelpText();
+    updateQueryParams();
+    return;
+  }
+
+  if (target.matches(".graphs-list input[type='checkbox']")) {
+    updateQueryParams();
+    return;
   }
 });
 
@@ -109,6 +133,7 @@ document.addEventListener("click", (e) => {
     document.querySelectorAll(".graphs-list input[type='checkbox']").forEach((el) => {
       if (el instanceof HTMLInputElement) el.checked = false;
     });
+    updateQueryParams();
     submitQueryForm();
   }
 });
