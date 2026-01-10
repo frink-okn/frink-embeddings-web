@@ -487,6 +487,12 @@ form.htmx-request .loading { display: inline; }
   white-space: nowrap;
 }
 
+/* allow dropdown menus to escape the Actions cell */
+.results-table td.actions-cell {
+  overflow: visible;
+  position: relative;
+}
+
 .results-table td a {
   display: inline-block;
   max-width: 100%;
@@ -521,6 +527,114 @@ form.htmx-request .loading { display: inline; }
 
 .copy-btn:hover { background: #eef2f7; }
 .copy-btn.copied { border-color: rgba(37, 99, 235, 0.45); }
+
+/* ==============================
+   Per-row Actions menu trigger + repr dialog
+   ============================== */
+
+.row-actions-trigger-btn {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  line-height: 1.2;
+  font: inherit;
+}
+
+.row-actions-trigger-btn:hover {
+  background: #eef2f7;
+}
+
+.actions-menu {
+  width: 260px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  padding: 6px;
+  z-index: 2000;
+}
+
+.actions-menu-item {
+  width: 100%;
+  display: block;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  line-height: inherit;
+}
+
+.actions-menu-link:hover {
+  background: #f3f4f6;
+  text-decoration: none;
+}
+
+.actions-menu-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.actions-menu-btn:hover {
+  background: #f3f4f6;
+}
+
+.repr-dialog {
+  width: min(820px, calc(100vw - 32px));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.repr-dialog::backdrop {
+  background: rgba(0,0,0,0.35);
+}
+
+.repr-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.repr-dialog-title {
+  font-weight: 600;
+}
+
+.repr-dialog-close {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+.repr-dialog-meta {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.repr-dialog-body {
+  margin: 0;
+  max-height: min(60vh, 520px);
+  overflow: auto;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 
 /* ==============================
    Pagination

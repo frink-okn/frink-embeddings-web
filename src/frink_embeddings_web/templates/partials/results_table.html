@@ -40,7 +40,7 @@
           <th>Label</th>
           <th>Graph</th>
           <th>Match Score</th>
-          <th></th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -63,14 +63,19 @@
               {{ "" }}
             {% endif %}
           </td>
-          <td>
-            <a
-              href="https://frink.apps.renci.org/term/{{ r.encoded_uri }}"
-              target="_blank"
-              rel="noreferrer"
+          <td class="actions-cell">
+            <button
+              type="button"
+              class="row-actions-trigger-btn"
+              title="Actions"
+              aria-label="Actions"
+              data-uri="{{ r.payload.iri }}"
+              data-graph="{{ r.payload.graph or '' }}"
+              data-external="https://frink.apps.renci.org/term/{{ r.encoded_uri }}"
             >
-              Details
-            </a>
+              ⋯
+            </button>
+            <template class="repr-template">{{ (r.payload.repr or '') | tojson }}</template>
           </td>
         </tr>
       {% endfor %}

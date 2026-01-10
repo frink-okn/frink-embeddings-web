@@ -54,15 +54,166 @@ async function copyToClipboard(text, btn) {
   }
 }
 
+function submitQueryForm() {
+  const form = document.querySelector(".query-form");
+  if (!(form instanceof HTMLFormElement)) return;
+
+  // Let htmx intercept the submit event on the form.
+  form.requestSubmit();
+}
+
+let activeRowContext = null;
+
+function parseTemplateJson(tmpl) {
+  if (!(tmpl instanceof HTMLTemplateElement)) return "";
+
+  // We render with Jinja `tojson`, so innerHTML is valid JSON (quoted string).
+  try {
+    return JSON.parse(tmpl.innerHTML || "\"\"");
+  } catch (e) {
+    return tmpl.textContent || "";
+  }
+}
+
+function hideActionsMenu() {
+  const menu = document.getElementById("actions-menu");
+  if (!(menu instanceof HTMLElement)) return;
+  menu.hidden = true;
+  menu.removeAttribute("style");
+  activeRowContext = null;
+}
+
+function showActionsMenuAt(triggerEl) {
+  const menu = document.getElementById("actions-menu");
+  if (!(menu instanceof HTMLElement)) return;
+
+  const rect = triggerEl.getBoundingClientRect();
+
+  // Position using fixed so it can escape scroll containers.
+  menu.style.position = "fixed";
+
+  // Prefer aligning right edge with trigger, but clamp to viewport.
+  const menuWidth = 260;
+  const desiredLeft = rect.right - menuWidth;
+  const left = Math.max(8, Math.min(desiredLeft, window.innerWidth - menuWidth - 8));
+
+  // Prefer opening below, but flip above if near bottom.
+  const desiredTop = rect.bottom + 6;
+  const approxHeight = 170;
+  const top = (desiredTop + approxHeight > window.innerHeight - 8)
+    ? Math.max(8, rect.top - 6 - approxHeight)
+    : desiredTop;
+
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+  menu.hidden = false;
+}
+
+document.addEventListener("scroll", () => hideActionsMenu(), true);
+window.addEventListener("resize", () => hideActionsMenu());
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") hideActionsMenu();
+});
+
 document.addEventListener("click", (e) => {
   const target = e.target;
   if (!(target instanceof HTMLElement)) return;
 
-  const btn = target.closest(".copy-btn");
-  if (!btn) return;
+  // Copy URI
+  const copyBtn = target.closest(".copy-btn");
+  if (copyBtn) {
+    const text = copyBtn.getAttribute("data-copy") || "";
+    copyToClipboard(text, copyBtn);
+    return;
+  }
 
-  const text = btn.getAttribute("data-copy") || "";
-  copyToClipboard(text, btn);
+  // Open per-row actions (portal menu)
+  const triggerBtn = target.closest(".row-actions-trigger-btn");
+  if (triggerBtn instanceof HTMLButtonElement) {
+    if (!triggerBtn.getAttribute("data-uri")) return;
+
+    const uri = triggerBtn.getAttribute("data-uri") || "";
+    const graph = triggerBtn.getAttribute("data-graph") || "";
+    const external = triggerBtn.getAttribute("data-external") || "";
+
+    // Extract repr from adjacent template.
+    let repr = "";
+    const cell = triggerBtn.closest("td");
+    if (cell instanceof HTMLTableCellElement) {
+      const tmpl = cell.querySelector(".repr-template");
+      repr = parseTemplateJson(tmpl);
+    }
+
+    activeRowContext = { uri, graph, external, repr };
+
+    const externalLink = document.getElementById("actions-external");
+    if (externalLink instanceof HTMLAnchorElement) {
+      externalLink.href = external || "#";
+    }
+
+    showActionsMenuAt(triggerBtn);
+    return;
+  }
+
+  // Actions in the portal menu
+  const menuBtn = target.closest(".actions-menu-btn");
+  if (menuBtn instanceof HTMLButtonElement) {
+    const action = menuBtn.getAttribute("data-action") || "";
+    const ctx = activeRowContext;
+    hideActionsMenu();
+
+    if (!ctx) return;
+
+    if (action === "similar") {
+      const featureTypeEl = document.querySelector("[name='feat_type']");
+      const featureValueEl = document.querySelector("[name='feat_value']");
+
+      if (featureTypeEl instanceof HTMLSelectElement) featureTypeEl.value = "node";
+      if (featureValueEl instanceof HTMLInputElement) featureValueEl.value = ctx.uri;
+
+      submitQueryForm();
+      return;
+    }
+
+    if (action === "restrict-graph") {
+      const graphInputs = document.querySelectorAll("input[name='graph']");
+      graphInputs.forEach((el) => {
+        if (el instanceof HTMLInputElement) el.checked = false;
+      });
+
+      if (ctx.graph) {
+        const toCheck = document.querySelector(`input[name='graph'][value="${CSS.escape(ctx.graph)}"]`);
+        if (toCheck instanceof HTMLInputElement) toCheck.checked = true;
+      }
+
+      submitQueryForm();
+      return;
+    }
+
+    if (action === "show-repr") {
+      const dialog = document.getElementById("repr-dialog");
+      const uriEl = document.getElementById("repr-dialog-uri");
+      const bodyEl = document.getElementById("repr-dialog-body");
+
+      if (uriEl) uriEl.textContent = ctx.uri;
+      if (bodyEl) bodyEl.textContent = ctx.repr;
+
+      if (dialog instanceof HTMLDialogElement) {
+        dialog.showModal();
+      }
+      return;
+    }
+
+    return;
+  }
+
+  // Click outside closes the portal menu.
+  const menu = document.getElementById("actions-menu");
+  if (menu instanceof HTMLElement && !menu.hidden) {
+    if (!target.closest("#actions-menu")) {
+      hideActionsMenu();
+    }
+  }
 });
 
 window.Frink = {

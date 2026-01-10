@@ -134,6 +134,35 @@
         <a href="https://qdrant.tech/" target="_blank" rel="noreferrer">Powered by Qdrant</a>
       </div>
     </footer>
+
+    <div id="actions-menu" class="actions-menu" hidden>
+      <a class="actions-menu-item actions-menu-link" id="actions-external" target="_blank" rel="noreferrer">
+        View in FRINK index
+      </a>
+      <button type="button" class="actions-menu-item actions-menu-btn" data-action="similar">
+        Find similar terms
+      </button>
+      <button type="button" class="actions-menu-item actions-menu-btn" data-action="restrict-graph">
+        Restrict search to this graph
+      </button>
+      <button type="button" class="actions-menu-item actions-menu-btn" data-action="show-repr">
+        Show embedding text
+      </button>
+    </div>
+
+    <dialog id="repr-dialog" class="repr-dialog">
+      <div class="repr-dialog-header">
+        <div class="repr-dialog-title">Embedding text</div>
+        <form method="dialog">
+          <button class="repr-dialog-close" aria-label="Close">Close</button>
+        </form>
+      </div>
+      <div class="repr-dialog-meta">
+        <span class="muted">URI:</span>
+        <span class="mono" id="repr-dialog-uri"></span>
+      </div>
+      <pre class="repr-dialog-body" id="repr-dialog-body"></pre>
+    </dialog>
   </div>
 </body>
 </html>
