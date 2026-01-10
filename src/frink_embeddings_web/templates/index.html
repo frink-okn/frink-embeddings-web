@@ -95,7 +95,30 @@
             <section class="card results-card" aria-label="Results">
               <div class="results-header">
                 <div class="results-title">Results</div>
-                <div class="results-controls" id="results-controls" aria-label="Results pagination"></div>
+                <div class="results-controls" id="results-controls" aria-label="Results controls">
+                  <label class="limit-control" aria-label="Results limit">
+                    <span class="limit-label">Limit</span>
+                    <select
+                      name="limit"
+                      class="limit-select"
+                      hx-post="{{ url_for('web.post_query_view') }}"
+                      hx-target="#results"
+                      hx-target-error="#errors"
+                      hx-disabled-elt=".submit-req"
+                      hx-include=".query-form"
+                      hx-indicator=".query-form"
+                      hx-on:htmx-config-request="Frink.updateQueryParams()"
+                      hx-trigger="change"
+                      hx-vals='{"offset": 0}'
+                    >
+                      {% for opt in [10, 25, 50, 100] %}
+                        <option value="{{ opt }}" {% if opt == 10 %}selected{% endif %}>{{ opt }}</option>
+                      {% endfor %}
+                    </select>
+                  </label>
+
+                  <div id="results-pagination" class="pagination" aria-label="Pagination"></div>
+                </div>
               </div>
               <section id="results" aria-live="polite"></section>
             </section>

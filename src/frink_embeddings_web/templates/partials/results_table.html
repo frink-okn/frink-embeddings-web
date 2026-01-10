@@ -1,7 +1,7 @@
 <div id="errors" class="alert" role="alert" hx-swap-oob="true">{% if error %}{{ error }}{% endif %}</div>
 
 {% if results and results|length > 0 %}
-<div id="results-controls" class="pagination" hx-swap-oob="true">
+<div id="results-pagination" class="pagination" hx-swap-oob="true">
   <button
     class="submit-req"
     hx-post="{{ url_for('web.post_query_view') }}"
@@ -79,6 +79,6 @@
   </div>
 </div>
 {% else %}
-<div id="results-controls" hx-swap-oob="true"></div>
+<div id="results-pagination" hx-swap-oob="true"></div>
 <p>No results.</p>
 {% endif %}

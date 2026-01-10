@@ -179,6 +179,27 @@ a:hover { text-decoration: underline; }
   align-items: center;
 }
 
+.limit-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.limit-label {
+  color: var(--muted);
+}
+
+.limit-select {
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  padding: 0 10px;
+}
+
 .results-title {
   font-size: 14px;
   font-weight: 600;
