@@ -4,62 +4,187 @@
   <meta charset="utf-8">
   <title>Frink Embeddings Query</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+  <!-- Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
   <script src="https://unpkg.com/htmx.org@2.0.8/dist/htmx.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/htmx-ext-response-targets@2.0.4" integrity="sha384-T41oglUPvXLGBVyRdZsVRxNWnOOqCynaPubjUVjxhsjFTKrFJGEMm3/0KGmNQ+Pg" crossorigin="anonymous"></script>
   <script src="{{ url_for('static', filename='index.js') }}"></script>
 </head>
 <body hx-ext="response-targets">
-  <main>
-    <h1 style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;">Frink Embeddings Query</h1>
+  <div class="app">
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-title">FRINK</div>
+        <div class="brand-subtitle">Embeddings Query</div>
+      </div>
+    </header>
 
-    <form
-      hx-post="{{ url_for('web.post_query_view') }}"
-      hx-target="#results"
-      hx-target-error="#errors"
-      hx-disabled-elt=".submit-req"
-      hx-on:htmx-config-request="Frink.updateQueryParams()"
-    >
-      <div id="features">
-        <div class="feature-row">
-          <select name="feat_type">
-            <option
-              value="text"
-              {% if feature_type != "node" %}selected{% endif %}
-            >Text</option>
-            <option
-              value="node"
-              {% if feature_type == "node" %}selected{% endif %}
-            >Node URI</option>
-          </select>
+    <main class="app-main">
+      <h1 class="sr-only">Frink Embeddings Query</h1>
 
-          <input
-            type="text"
-            name="feat_value"
-            value="{{ feature_value }}"
-            placeholder="Enter text or node IRI"
-          >
+      <form
+        class="query-form"
+        hx-post="{{ url_for('web.post_query_view') }}"
+        hx-target="#results"
+        hx-target-error="#errors"
+        hx-disabled-elt=".submit-req"
+        hx-on:htmx-config-request="Frink.updateQueryParams()"
+      >
+        <div class="page-layout">
+          <aside class="card graphs-panel" aria-label="Graphs">
+            <div class="graphs-header">
+              <div class="label">Graphs</div>
+            </div>
+            <div class="muted graphs-help" id="graphs-help">Select none = search all graphs</div>
+
+            <div class="graphs-mode" role="group" aria-label="Graph filter mode">
+              <label class="graphs-mode-option">
+                <input type="radio" name="graph_mode" value="include" {% if graph_mode != 'exclude' %}checked{% endif %}>
+                <span>Include</span>
+              </label>
+              <label class="graphs-mode-option">
+                <input type="radio" name="graph_mode" value="exclude" {% if graph_mode == 'exclude' %}checked{% endif %}>
+                <span>Exclude</span>
+              </label>
+
+              <button type="button" class="graphs-reset" id="graphs-reset">Reset</button>
+            </div>
+
+            <div class="graphs-list">
+              {% for graph in graphs %}
+                <label class="graph-item">
+                  <input
+                    type="checkbox"
+                    name="{% if graph_mode == 'exclude' %}exclude_graphs{% else %}include_graphs{% endif %}"
+                    value="{{ graph }}"
+                    {% if selected_graphs and graph in selected_graphs %}checked{% endif %}
+                  />
+                  <span>{{ graph }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </aside>
+
+          <div class="page-main">
+            <section class="card query-card" aria-label="Query">
+              <div class="query-grid">
+                <div class="field">
+                  <label class="label" for="feat_type">Feature type</label>
+                  <select id="feat_type" name="feat_type">
+                    <option
+                      value="text"
+                      {% if feature_type != "node" %}selected{% endif %}
+                    >Text</option>
+                    <option
+                      value="node"
+                      {% if feature_type == "node" %}selected{% endif %}
+                    >Node URI</option>
+                  </select>
+                </div>
+
+                <div class="field grow">
+                  <label class="label" for="feat_value">Feature value</label>
+                  <input
+                    id="feat_value"
+                    type="text"
+                    name="feat_value"
+                    value="{{ feature_value }}"
+                    placeholder="Enter text or node IRI"
+                  >
+                </div>
+
+                <div class="field actions">
+                  <label class="label" aria-hidden="true">Actions</label>
+                  <div class="actions-row">
+                    <button class="btn btn-primary submit-req" id="submit-btn" type="submit">Search</button>
+                    <span class="loading" role="status" aria-live="polite">Searching…</span>
+                  </div>
+                </div>
+              </div>
+
+              <section id="errors" class="alert" aria-live="polite"></section>
+            </section>
+
+            <section class="card results-card" aria-label="Results">
+              <div class="results-header">
+                <div class="results-title">Results</div>
+                <div class="results-controls" id="results-controls" aria-label="Results controls">
+                  <label class="limit-control" aria-label="Results limit">
+                    <span class="limit-label">Limit</span>
+                    <select
+                      name="limit"
+                      class="limit-select"
+                      hx-post="{{ url_for('web.post_query_view') }}"
+                      hx-target="#results"
+                      hx-target-error="#errors"
+                      hx-disabled-elt=".submit-req"
+                      hx-include=".query-form"
+                      hx-indicator=".query-form"
+                      hx-on:htmx-config-request="Frink.updateQueryParams()"
+                      hx-trigger="change"
+                      hx-vals='{"offset": 0}'
+                    >
+                      {% for opt in [10, 25, 50, 100] %}
+                        <option value="{{ opt }}" {% if opt == 10 %}selected{% endif %}>{{ opt }}</option>
+                      {% endfor %}
+                    </select>
+                  </label>
+
+                  <div id="results-pagination" class="pagination" aria-label="Pagination"></div>
+                </div>
+              </div>
+              <section id="results" aria-live="polite"></section>
+            </section>
+          </div>
         </div>
+      </form>
+    </main>
+
+    <footer class="app-footer">
+      <div class="footer-inner">
+        <a href="https://github.com/frink-okn/frink-embeddings-web" target="_blank" rel="noreferrer">Source code</a>
+        <span class="footer-sep">•</span>
+        <a href="https://qdrant.tech/" target="_blank" rel="noreferrer">Powered by Qdrant</a>
       </div>
+    </footer>
 
-      <section id="graphs">
-        {% for graph in graphs %}
-          <label>
-            <input type="checkbox" name="graph" value="{{ graph }}" />
-            {{ graph }}
-          </label>
-        {% endfor %}
-      </section>
+    <div id="actions-menu" class="actions-menu" hidden>
+      <a class="actions-menu-item actions-menu-link" id="actions-external" target="_blank" rel="noreferrer">
+        View in FRINK index
+      </a>
+      <button type="button" class="actions-menu-item actions-menu-btn" data-action="similar">
+        Find similar terms
+      </button>
+      <button type="button" class="actions-menu-item actions-menu-btn" data-action="restrict-graph">
+        Restrict search to this graph
+      </button>
+      <button type="button" class="actions-menu-item actions-menu-btn" data-action="exclude-graph">
+        Exclude this graph
+      </button>
+      <button type="button" class="actions-menu-item actions-menu-btn" data-action="show-repr">
+        Show embedding text
+      </button>
+    </div>
 
-      <div style="margin: 8px 0;">
-        <button class="submit-req" id="submit-btn" type="submit">Submit</button>
-        <span class="loading">loading</span>
+    <dialog id="repr-dialog" class="repr-dialog">
+      <div class="repr-dialog-header">
+        <div class="repr-dialog-title">Embedding text</div>
+        <form method="dialog">
+          <button class="repr-dialog-close" aria-label="Close">Close</button>
+        </form>
       </div>
-
-      <section id="errors" aria-live="polite" style="margin-top: 12px;"></section>
-      <section id="results" aria-live="polite" style="margin-top: 12px;"></section>
-    </form>
-
-  </main>
+      <div class="repr-dialog-meta">
+        <span class="muted">URI:</span>
+        <span class="mono" id="repr-dialog-uri"></span>
+      </div>
+      <pre class="repr-dialog-body" id="repr-dialog-body"></pre>
+    </dialog>
+  </div>
 </body>
 </html>

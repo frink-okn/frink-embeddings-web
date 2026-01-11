@@ -1,3 +1,5 @@
+from urllib.parse import quote, unquote
+
 import httpx
 from flask import Blueprint, jsonify, render_template, request
 from pydantic import ValidationError
@@ -15,10 +17,13 @@ web = Blueprint("web", __name__)
 
 
 def serialize_point(p: ScoredPoint) -> dict:
+    payload = p.payload or {}
+
     return {
         "id": str(p.id),
         "score": float(p.score) if p.score is not None else None,
         "payload": p.payload or {},
+        "encoded_uri": quote(unquote(payload.get("iri", "")), safe=""),
     }
 
 
@@ -88,11 +93,16 @@ def index():
     feature_value = request.args.get("value", "")
     graphs = ctx.graphs
 
+    graph_mode = request.args.get("graph-mode", "include")
+    selected_graphs = request.args.getlist("graph")
+
     return render_template(
         "index.html",
         feature_type=feature_type,
         feature_value=feature_value,
         graphs=graphs,
+        graph_mode=graph_mode,
+        selected_graphs=selected_graphs,
     )
 
 
@@ -100,15 +110,23 @@ def index():
 def post_query_view():
     form = request.form
 
+    include_graphs = form.getlist("include_graphs")
+    exclude_graphs = form.getlist("exclude_graphs")
+
     data = {
         "feature": {
             "type": form.get("feat_type"),
             "value": form.get("feat_value"),
         },
-        "graphs": form.getlist("graph"),
         "limit": form.get("limit", 10),
         "offset": form.get("offset", 0),
     }
+
+    if include_graphs:
+        data["include_graphs"] = include_graphs
+
+    if exclude_graphs:
+        data["exclude_graphs"] = exclude_graphs
 
     try:
         q = Query.model_validate(data)
