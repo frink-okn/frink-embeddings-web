@@ -1,4 +1,4 @@
-from urllib.parse import quote, unquote
+from urllib.parse import quote
 
 import httpx
 from flask import Blueprint, jsonify, render_template, request
@@ -23,7 +23,7 @@ def serialize_point(p: ScoredPoint) -> dict:
         "id": str(p.id),
         "score": float(p.score) if p.score is not None else None,
         "payload": p.payload or {},
-        "encoded_uri": quote(unquote(payload.get("iri", "")), safe=""),
+        "encoded_uri": quote(payload.get("iri", ""), safe=""),
     }
 
 
