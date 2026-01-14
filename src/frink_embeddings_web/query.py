@@ -6,6 +6,7 @@ from qdrant_client.models import (
     MatchAny,
     MatchValue,
     ScoredPoint,
+    SearchParams,
 )
 from sentence_transformers import SentenceTransformer
 
@@ -53,6 +54,7 @@ def run_similarity_search(
     client: QdrantClient,
     model: SentenceTransformer,
     collection_name: str,
+    hnsw_ef: int | None,
 ) -> list[ScoredPoint]:
     vector = get_embedding(query_obj.feature, client, model, collection_name)
 
@@ -76,6 +78,8 @@ def run_similarity_search(
             ]
         )
 
+    search_params = SearchParams(hnsw_ef=hnsw_ef)
+
     return client.search(
         collection_name=collection_name,
         query_vector=vector.tolist(),
@@ -83,4 +87,5 @@ def run_similarity_search(
         with_payload=True,
         limit=query_obj.limit,
         offset=query_obj.offset,
+        search_params=search_params,
     )
