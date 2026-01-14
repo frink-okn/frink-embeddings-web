@@ -13,6 +13,7 @@ def create_app() -> WrappedFlask:
     # Configuration from environment with sensible defaults
     qdrant_host = os.getenv("QDRANT_HOST", "http://127.0.0.1")
     qdrant_port = int(os.getenv("QDRANT_PORT", "5554"))
+    qdrant_hnsw_ef = int(os.getenv("QDRANT_HNSW_EF", "500"))
     collection = os.getenv("QDRANT_COLLECTION", "OKN-Graph")
     model_name = os.getenv("SENTENCE_MODEL_NAME", "all-MiniLM-L6-v2")
     graph_catalog = Path(os.getenv("GRAPH_CATALOG", "graphs.txt"))
@@ -23,6 +24,7 @@ def create_app() -> WrappedFlask:
 
     ctx = AppContext(
         client=client,
+        qdrant_hnsw_ef=qdrant_hnsw_ef,
         collection=collection,
         model=model,
         graph_catalog=graph_catalog,

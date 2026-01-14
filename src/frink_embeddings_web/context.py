@@ -13,6 +13,7 @@ class AppContext:
     collection: str
     model: SentenceTransformer
     graph_catalog: Path
+    qdrant_hnsw_ef: int | None
 
     @property
     def graphs(self) -> list[str]:

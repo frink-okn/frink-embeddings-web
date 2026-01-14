@@ -39,6 +39,8 @@ spec:
               value: {{ .Values.env.qdrantPort | quote }}
             - name: "QDRANT_COLLECTION"
               value: {{ .Values.env.qdrantCollection }}
+            - name: "QDRANT_HNSW_EF"
+              value: {{ .Values.env.qdrantHnswEf | quote }}
             - name: "SENTENCE_MODEL_NAME"
               value: {{ .Values.env.model }}
             - name: "SENTENCE_TRANSFORMERS_HOME"
