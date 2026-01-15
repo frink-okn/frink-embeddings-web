@@ -33,15 +33,13 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
-            - name: "QDRANT_HOST"
-              value: {{ .Values.env.qdrantHost }}
-            - name: "QDRANT_PORT"
-              value: {{ .Values.env.qdrantPort | quote }}
+            - name: "QDRANT_LOCATION"
+              value: {{ .Values.env.qdrantLocation }}
             - name: "QDRANT_COLLECTION"
               value: {{ .Values.env.qdrantCollection }}
             - name: "QDRANT_HNSW_EF"
               value: {{ .Values.env.qdrantHnswEf | quote }}
-            - name: "SENTENCE_MODEL_NAME"
+            - name: "MODEL_NAME"
               value: {{ .Values.env.model }}
             - name: "SENTENCE_TRANSFORMERS_HOME"
               value: {{ .Values.env.sentenceTransformersHome }}

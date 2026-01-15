@@ -18,8 +18,7 @@ storage:
   size: 5Gi
 
 env:
-  qdrantHost: "http://qdrant.frink"
-  qdrantPort: "6333"
+  qdrantLocation: "http://qdrant.frink:6333"
   qdrantCollection: "OKN-Graph"
   model: "all-MiniLM-L6-v2"
   sentenceTransformersHome: "/mnt/models/"
