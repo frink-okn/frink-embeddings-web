@@ -14,7 +14,6 @@ class AppSettings(BaseSettings):
     qdrant_collection: str
     qdrant_timeout: int
     model_name: str
-    graph_catalog: Path
 
 
 def load_settings():

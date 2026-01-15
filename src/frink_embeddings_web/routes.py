@@ -8,7 +8,6 @@ from qdrant_client.models import ScoredPoint
 
 from frink_embeddings_web.context import get_ctx
 from frink_embeddings_web.errors import URINotFoundError
-from frink_embeddings_web.graphs import update_graph_catalog
 from frink_embeddings_web.model import Query
 from frink_embeddings_web.query import run_similarity_search
 
@@ -51,13 +50,6 @@ def parse_error(e: Exception):
         case _:
             status = 500
     return msg, status
-
-
-@api.post("/update-graphs")
-def update_graphs():
-    ctx = get_ctx()
-    update_graph_catalog(ctx)
-    return "", 200
 
 
 @api.post("/query")

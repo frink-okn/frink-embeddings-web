@@ -1,16 +1,18 @@
-from frink_embeddings_web.context import AppContext
+from typing import TYPE_CHECKING
+
+from cachetools import TTLCache, cached
+
+if TYPE_CHECKING:
+    from frink_embeddings_web.context import AppContext
 
 
-def update_graph_catalog(ctx: AppContext):
-    res = ctx.client.query_points_groups(
+@cached(cache=TTLCache(maxsize=1, ttl=60 * 10))
+def get_graphs(ctx: "AppContext"):
+    res = ctx.client.facet(
         collection_name=ctx.settings.qdrant_collection,
-        with_vectors=False,
-        group_by="graph",
-        group_size=1,
+        key="graph",
         limit=100,
-        timeout=None,
     )
-    groups = [str(group.id).strip() for group in res.groups]
-    with ctx.settings.graph_catalog.open("w") as fp:
-        fp.write("\n".join(groups))
+
+    groups = [str(hit.value).strip() for hit in res.hits]
     return groups

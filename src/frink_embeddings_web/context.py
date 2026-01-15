@@ -5,6 +5,7 @@ from flask import Flask, current_app
 from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
 
+from frink_embeddings_web.graphs import get_graphs
 from frink_embeddings_web.settings import AppSettings
 
 
@@ -30,10 +31,7 @@ class AppContext:
 
     @property
     def graphs(self) -> list[str]:
-        try:
-            return sorted(self.settings.graph_catalog.read_text().splitlines())
-        except FileNotFoundError:
-            return []
+        return get_graphs(self)
 
 
 class WrappedFlask(Flask):
