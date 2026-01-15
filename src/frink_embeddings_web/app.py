@@ -1,34 +1,12 @@
-import os
-from pathlib import Path
-
-from qdrant_client import QdrantClient
-from sentence_transformers import SentenceTransformer
-
 from frink_embeddings_web.context import AppContext, WrappedFlask
+from frink_embeddings_web.settings import load_settings
 
 
 def create_app() -> WrappedFlask:
     app = WrappedFlask(__name__)
 
-    # Configuration from environment with sensible defaults
-    qdrant_host = os.getenv("QDRANT_HOST", "http://127.0.0.1")
-    qdrant_port = int(os.getenv("QDRANT_PORT", "5554"))
-    qdrant_hnsw_ef = int(os.getenv("QDRANT_HNSW_EF", "500"))
-    collection = os.getenv("QDRANT_COLLECTION", "OKN-Graph")
-    model_name = os.getenv("SENTENCE_MODEL_NAME", "all-MiniLM-L6-v2")
-    graph_catalog = Path(os.getenv("GRAPH_CATALOG", "graphs.txt"))
-
-    # Initialize shared dependencies once
-    client = QdrantClient(qdrant_host, port=qdrant_port, timeout=30)
-    model = SentenceTransformer(model_name)
-
-    ctx = AppContext(
-        client=client,
-        qdrant_hnsw_ef=qdrant_hnsw_ef,
-        collection=collection,
-        model=model,
-        graph_catalog=graph_catalog,
-    )
+    settings = load_settings()
+    ctx = AppContext.from_settings(settings)
     app.ctx = ctx
 
     # Register API & Web routes

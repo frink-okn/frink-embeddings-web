@@ -1,25 +1,38 @@
 from dataclasses import dataclass
-from pathlib import Path
 from typing import cast
 
 from flask import Flask, current_app
 from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
 
+from frink_embeddings_web.settings import AppSettings
+
 
 @dataclass
 class AppContext:
     client: QdrantClient
-    collection: str
     model: SentenceTransformer
-    graph_catalog: Path
-    qdrant_hnsw_ef: int | None
+    settings: AppSettings
+
+    @staticmethod
+    def from_settings(settings: AppSettings) -> "AppContext":
+        client = QdrantClient(
+            location=settings.qdrant_location,
+            timeout=settings.qdrant_timeout,
+        )
+        model = SentenceTransformer(settings.model_name)
+
+        return AppContext(
+            client=client,
+            model=model,
+            settings=settings,
+        )
 
     @property
     def graphs(self) -> list[str]:
         try:
-            return sorted(self.graph_catalog.read_text().splitlines())
-        except Exception:
+            return sorted(self.settings.graph_catalog.read_text().splitlines())
+        except FileNotFoundError:
             return []
 
 

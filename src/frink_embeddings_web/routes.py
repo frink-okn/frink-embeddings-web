@@ -76,8 +76,8 @@ def post_query():
             query_obj=q,
             client=ctx.client,
             model=ctx.model,
-            collection_name=ctx.collection,
-            hnsw_ef=ctx.qdrant_hnsw_ef,
+            collection_name=ctx.settings.qdrant_collection,
+            hnsw_ef=ctx.settings.qdrant_hnsw_ef,
         )
     except Exception as e:
         msg, status = parse_error(e)
@@ -144,8 +144,8 @@ def post_query_view():
             query_obj=q,
             client=ctx.client,
             model=ctx.model,
-            collection_name=ctx.collection,
-            hnsw_ef=ctx.qdrant_hnsw_ef,
+            collection_name=ctx.settings.qdrant_collection,
+            hnsw_ef=ctx.settings.qdrant_hnsw_ef,
         )
     except Exception as e:
         msg, status = parse_error(e)
