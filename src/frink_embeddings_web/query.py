@@ -55,6 +55,7 @@ def run_similarity_search(
     model: SentenceTransformer,
     collection_name: str,
     hnsw_ef: int | None,
+    exact: bool=False,
 ) -> list[ScoredPoint]:
     vector = get_embedding(query_obj.feature, client, model, collection_name)
 
@@ -78,7 +79,7 @@ def run_similarity_search(
             ]
         )
 
-    search_params = SearchParams(hnsw_ef=hnsw_ef)
+    search_params = SearchParams(hnsw_ef=hnsw_ef, exact=exact)
 
     return client.search(
         collection_name=collection_name,
