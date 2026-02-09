@@ -1,4 +1,7 @@
+import time
+
 import numpy as np
+from loguru import logger
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     FieldCondition,
@@ -81,12 +84,19 @@ def run_similarity_search(
 
     search_params = SearchParams(hnsw_ef=hnsw_ef, exact=exact)
 
-    return client.search(
+    start_time = time.perf_counter()
+    resp = client.query_points(
+        query=vector.tolist(),
         collection_name=collection_name,
-        query_vector=vector.tolist(),
         query_filter=graph_filter,
         with_payload=True,
         limit=query_obj.limit,
         offset=query_obj.offset,
         search_params=search_params,
     )
+    end_time = time.perf_counter()
+    query_time = end_time - start_time
+
+    logger.debug(f"{query_time:.3f}s for query: {query_obj}")
+
+    return resp.points
