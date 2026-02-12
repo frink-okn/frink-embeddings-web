@@ -5,10 +5,10 @@
 replicaCount: 1
 
 image:
-  repository: containers.renci.org/frink/embedding-web-ui
+  repository: ghcr.io/frink-okn/frink-web
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "v0.0.1"
+  tag: "v1.0.2"
 
 imagePullSecrets: []
 nameOverride: ""
@@ -18,12 +18,13 @@ storage:
   size: 5Gi
 
 env:
-  qdrantHost: "http://qdrant.frink"
+  qdrantHost: "http://34.48.253.137"
   qdrantPort: "6333"
-  qdrantCollection: "OKN-Graph"
+  qdrantCollection: "OKN-Graph2"
   model: "all-MiniLM-L6-v2"
   sentenceTransformersHome: "/mnt/models/"
   webPath: "/embeddings"
+  qdrantHnswEf: 500
 
 
 podAnnotations: {}
@@ -67,10 +68,15 @@ resources:
   # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
    limits:
     cpu: 2
-    memory: 5Gi
+    memory: 10Gi
    requests:
      memory: 128Mi
-
+gateway:
+  parentRefs:
+    - name: ingress-gateway
+      namespace: ingress
+  host: "frink-apps.35.186.218.150.nip.io"
+  path: "/embeddings"
 
 nodeSelector: {}
 
