@@ -65,11 +65,8 @@ def post_query():
 
     try:
         points = run_similarity_search(
+            ctx,
             query_obj=q,
-            client=ctx.client,
-            model=ctx.model,
-            collection_name=ctx.settings.qdrant_collection,
-            hnsw_ef=ctx.settings.qdrant_hnsw_ef,
         )
     except Exception as e:
         msg, status = parse_error(e)
@@ -133,11 +130,8 @@ def post_query_view():
     ctx = get_ctx()
     try:
         points = run_similarity_search(
+            ctx,
             query_obj=q,
-            client=ctx.client,
-            model=ctx.model,
-            collection_name=ctx.settings.qdrant_collection,
-            hnsw_ef=ctx.settings.qdrant_hnsw_ef,
         )
     except Exception as e:
         msg, status = parse_error(e)

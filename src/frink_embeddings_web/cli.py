@@ -25,12 +25,9 @@ def search(
     )
 
     results = run_similarity_search(
+        ctx,
         query_obj=query,
-        client=ctx.client,
-        model=ctx.model,
-        collection_name=settings.qdrant_collection,
         exact=exact,
-        hnsw_ef=settings.qdrant_hnsw_ef,
     )
 
     out = []

@@ -2,7 +2,6 @@ import time
 
 import numpy as np
 from loguru import logger
-from qdrant_client import QdrantClient
 from qdrant_client.models import (
     FieldCondition,
     Filter,
@@ -13,6 +12,7 @@ from qdrant_client.models import (
 )
 from sentence_transformers import SentenceTransformer
 
+from frink_embeddings_web.context import AppContext
 from frink_embeddings_web.errors import URINotFoundError
 from frink_embeddings_web.model import Feature, NodeFeature, Query, TextFeature
 
@@ -23,17 +23,15 @@ def embed_text(text: str, model: SentenceTransformer) -> np.ndarray:
 
 
 def get_embedding(
+    ctx: AppContext,
     feature: Feature,
-    client: QdrantClient,
-    model: SentenceTransformer,
-    collection_name: str,
 ) -> np.ndarray:
     match feature:
         case TextFeature(type="text"):
-            return embed_text(feature.value, model)
+            return embed_text(feature.value, ctx.model)
         case NodeFeature(type="node"):
-            points, _ = client.scroll(
-                collection_name=collection_name,
+            points, _ = ctx.client.scroll(
+                collection_name=ctx.settings.qdrant_collection,
                 scroll_filter=Filter(
                     must=[
                         FieldCondition(
@@ -53,14 +51,12 @@ def get_embedding(
 
 
 def run_similarity_search(
+    ctx: AppContext,
     query_obj: Query,
-    client: QdrantClient,
-    model: SentenceTransformer,
-    collection_name: str,
-    hnsw_ef: int | None,
-    exact: bool=False,
+    hnsw_ef: int | None = None,
+    exact: bool = False,
 ) -> list[ScoredPoint]:
-    vector = get_embedding(query_obj.feature, client, model, collection_name)
+    vector = get_embedding(ctx, query_obj.feature)
 
     graph_filter: Filter | None = None
 
@@ -82,12 +78,15 @@ def run_similarity_search(
             ]
         )
 
-    search_params = SearchParams(hnsw_ef=hnsw_ef, exact=exact)
+    search_params = SearchParams(
+        hnsw_ef=ctx.settings.qdrant_hnsw_ef if hnsw_ef is None else hnsw_ef,
+        exact=exact,
+    )
 
     start_time = time.perf_counter()
-    resp = client.query_points(
+    resp = ctx.client.query_points(
         query=vector.tolist(),
-        collection_name=collection_name,
+        collection_name=ctx.settings.qdrant_collection,
         query_filter=graph_filter,
         with_payload=True,
         limit=query_obj.limit,
