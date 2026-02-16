@@ -15,7 +15,6 @@ def search(
     limit: int = 10,
 ):
     settings = load_settings()
-    settings.qdrant_timeout = 60
     ctx = AppContext.from_settings(settings)
 
     query = Query(

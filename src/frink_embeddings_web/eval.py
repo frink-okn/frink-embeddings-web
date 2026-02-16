@@ -64,7 +64,6 @@ def run_eval(
     output: Path,
 ):
     settings = load_settings()
-    settings.qdrant_timeout = 60
     ctx = AppContext.from_settings(settings)
     config = EvalConfig.from_toml(queries_toml)
 
