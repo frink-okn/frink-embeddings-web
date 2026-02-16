@@ -92,6 +92,7 @@ def run_similarity_search(
         limit=query_obj.limit,
         offset=query_obj.offset,
         search_params=search_params,
+        timeout=ctx.settings.qdrant_timeout,
     )
     end_time = time.perf_counter()
     query_time = end_time - start_time
