@@ -30,7 +30,9 @@ class Query(BaseModel):
     @model_validator(mode="after")
     def validate_graph_modes(self):
         if self.include_graphs and self.exclude_graphs:
-            raise ValueError("Only one of include_graphs or exclude_graphs may be set")
+            raise ValueError(
+                "Only one of include_graphs or exclude_graphs may be set"
+            )
         return self
 
 

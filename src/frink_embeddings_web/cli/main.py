@@ -2,10 +2,9 @@ import json
 
 import typer
 
-from frink_embeddings_web.context import AppContext
-from frink_embeddings_web.model import Query, TextFeature
-from frink_embeddings_web.query import run_similarity_search
-from frink_embeddings_web.settings import load_settings
+from ..config import AppContext, load_settings
+from ..core.models import Query, TextFeature
+from ..core.query import run_similarity_search
 
 
 def search(
@@ -31,7 +30,7 @@ def search(
 
     out = []
 
-    for result in results:
+    for result in results.points:
         if not result.payload:
             continue
         out.append(

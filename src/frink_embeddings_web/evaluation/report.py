@@ -4,14 +4,14 @@ from pathlib import Path
 from jinja2 import Environment, PackageLoader
 from pydantic import BaseModel
 
-from frink_embeddings_web.evaluation.eval import Evaluation
-from frink_embeddings_web.evaluation.metrics import (
+from ..core.models import TimedQueryResponse
+from .eval import Evaluation
+from .metrics import (
     fmt_range,
     missing_points_in_allgraph,
     recall_at_k,
     top_n_rows,
 )
-from frink_embeddings_web.model import TimedQueryResponse
 
 
 class RecallRow(BaseModel):

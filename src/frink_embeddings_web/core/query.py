@@ -8,15 +8,13 @@ from qdrant_client.models import (
     MatchAny,
     MatchValue,
     QuantizationSearchParams,
-    ScoredPoint,
     SearchParams,
 )
 from sentence_transformers import SentenceTransformer
 
-from frink_embeddings_web.context import AppContext
-from frink_embeddings_web.errors import URINotFoundError
-from frink_embeddings_web.model import (
-    BaseQuery,
+from ..config import AppContext
+from .errors import URINotFoundError
+from .models import (
     Feature,
     NodeFeature,
     Query,
@@ -27,7 +25,9 @@ from frink_embeddings_web.model import (
 
 def embed_text(text: str, model: SentenceTransformer) -> np.ndarray:
     """Encode text into the same embedding space as the stored vectors."""
-    return model.encode(text, normalize_embeddings=False).astype(np.float32)
+    return model.encode(
+        text, normalize_embeddings=False, convert_to_numpy=True
+    ).astype(np.float32)
 
 
 def get_embedding(

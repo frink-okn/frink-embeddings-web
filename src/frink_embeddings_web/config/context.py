@@ -1,12 +1,10 @@
 from dataclasses import dataclass
-from typing import cast
 
-from flask import Flask, current_app
 from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
 
-from frink_embeddings_web.graphs import get_graphs
-from frink_embeddings_web.settings import AppSettings
+from ..core.graphs import get_graphs
+from .settings import AppSettings
 
 
 @dataclass
@@ -32,12 +30,3 @@ class AppContext:
     @property
     def graphs(self) -> list[str]:
         return get_graphs(self)
-
-
-class WrappedFlask(Flask):
-    ctx: AppContext
-
-
-def get_ctx() -> AppContext:
-    app = cast(WrappedFlask, current_app)
-    return app.ctx

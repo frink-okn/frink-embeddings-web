@@ -6,10 +6,9 @@ from loguru import logger
 from pydantic import BaseModel
 from qdrant_client.models import CollectionInfo
 
-from frink_embeddings_web.context import AppContext
-from frink_embeddings_web.model import Query, TextFeature, TimedQueryResponse
-from frink_embeddings_web.query import run_similarity_search
-from frink_embeddings_web.settings import load_settings
+from ..config import AppContext, load_settings
+from ..core.models import Query, TextFeature, TimedQueryResponse
+from ..core.query import run_similarity_search
 
 app = typer.Typer(pretty_exceptions_enable=False)
 

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 from cachetools import TTLCache, cached
 
 if TYPE_CHECKING:
-    from frink_embeddings_web.context import AppContext
+    from ..config import AppContext
 
 
 @cached(

@@ -11,8 +11,7 @@ from qdrant_client.models import (
     SampleQuery,
 )
 
-from frink_embeddings_web.context import AppContext
-from frink_embeddings_web.settings import load_settings
+from ..config import AppContext, load_settings
 
 
 def sample_graph_points(

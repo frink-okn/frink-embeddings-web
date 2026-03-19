@@ -82,4 +82,3 @@ def missing_points_in_allgraph(
             missing_points.append(point)
 
     return missing_points, float(all_results_min)
-

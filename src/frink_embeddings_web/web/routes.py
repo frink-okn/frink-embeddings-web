@@ -6,10 +6,10 @@ from pydantic import ValidationError
 from qdrant_client.http.exceptions import ResponseHandlingException
 from qdrant_client.models import ScoredPoint
 
-from frink_embeddings_web.context import get_ctx
-from frink_embeddings_web.errors import URINotFoundError
-from frink_embeddings_web.model import Query
-from frink_embeddings_web.query import run_similarity_search
+from ..core.errors import URINotFoundError
+from ..core.models import Query
+from ..core.query import run_similarity_search
+from ._flask import get_ctx
 
 api = Blueprint("api", __name__)
 web = Blueprint("web", __name__)
