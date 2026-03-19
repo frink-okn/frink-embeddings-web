@@ -4,10 +4,10 @@ from pathlib import Path
 import typer
 from loguru import logger
 from pydantic import BaseModel
-from qdrant_client.models import CollectionInfo, ScoredPoint
+from qdrant_client.models import CollectionInfo
 
 from frink_embeddings_web.context import AppContext
-from frink_embeddings_web.model import Query, TextFeature
+from frink_embeddings_web.model import Query, TextFeature, TimedQueryResponse
 from frink_embeddings_web.query import run_similarity_search
 from frink_embeddings_web.settings import load_settings
 
@@ -24,38 +24,18 @@ class EvalConfig(BaseModel):
         return EvalConfig.model_validate(data)
 
 
-def get_ids(results: list[ScoredPoint]):
-    ids: list[str] = []
-    for r in results:
-        if r.payload and "iri" in r.payload:
-            ids.append(r.payload["iri"])
-    return ids
-
-
-def recall_at_k(a: list[ScoredPoint], b: list[ScoredPoint]):
-    a_ids = set(get_ids(a))
-    b_ids = set(get_ids(b))
-    overlap = len(a_ids & b_ids)
-    return overlap / len(a), overlap
-
-
-def fmt_range(points: list[ScoredPoint]):
-    return f"{points[-1].score:.2f} to {points[0].score:.2f}"
-
-
 class QueryResult(BaseModel):
     target_graph: str
     query: str
-    knn_results: list[ScoredPoint]
-    ann_ingraph_results: list[ScoredPoint]
-    ann_allgraph_results: list[ScoredPoint]
+    knn_results: TimedQueryResponse
+    ann_ingraph_results: TimedQueryResponse
+    ann_allgraph_results: TimedQueryResponse
 
 
 class Evaluation(BaseModel):
     collection_settings: CollectionInfo
     hnsw_ef: int
     queries: list[QueryResult]
-    pass
 
 
 @app.command()
