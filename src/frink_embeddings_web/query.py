@@ -7,6 +7,7 @@ from qdrant_client.models import (
     Filter,
     MatchAny,
     MatchValue,
+    QuantizationSearchParams,
     ScoredPoint,
     SearchParams,
 )
@@ -88,6 +89,11 @@ def run_similarity_search(
     search_params = SearchParams(
         hnsw_ef=ctx.settings.qdrant_hnsw_ef if hnsw_ef is None else hnsw_ef,
         exact=exact,
+        quantization=QuantizationSearchParams(
+            ignore=False,
+            rescore=True,
+            oversampling=3.0,
+        ),
     )
 
     start_time = time.perf_counter()
