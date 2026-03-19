@@ -2,16 +2,16 @@ import json
 from pathlib import Path
 
 from jinja2 import Environment, PackageLoader
-from model import TimedQueryResponse
 from pydantic import BaseModel
 
-from frink_embeddings_web.eval import Evaluation
-from frink_embeddings_web.eval_metrics import (
+from frink_embeddings_web.evaluation.eval import Evaluation
+from frink_embeddings_web.evaluation.metrics import (
     fmt_range,
     missing_points_in_allgraph,
     recall_at_k,
     top_n_rows,
 )
+from frink_embeddings_web.model import TimedQueryResponse
 
 
 class RecallRow(BaseModel):
