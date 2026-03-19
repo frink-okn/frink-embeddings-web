@@ -14,7 +14,14 @@ from sentence_transformers import SentenceTransformer
 
 from frink_embeddings_web.context import AppContext
 from frink_embeddings_web.errors import URINotFoundError
-from frink_embeddings_web.model import Feature, NodeFeature, Query, TextFeature
+from frink_embeddings_web.model import (
+    BaseQuery,
+    Feature,
+    NodeFeature,
+    Query,
+    TextFeature,
+    TimedQueryResponse,
+)
 
 
 def embed_text(text: str, model: SentenceTransformer) -> np.ndarray:
@@ -55,7 +62,7 @@ def run_similarity_search(
     query_obj: Query,
     hnsw_ef: int | None = None,
     exact: bool = False,
-) -> list[ScoredPoint]:
+) -> TimedQueryResponse:
     vector = get_embedding(ctx, query_obj.feature)
 
     graph_filter: Filter | None = None
@@ -95,8 +102,12 @@ def run_similarity_search(
         timeout=ctx.settings.qdrant_timeout,
     )
     end_time = time.perf_counter()
+
     query_time = end_time - start_time
 
     logger.debug(f"{query_time:.3f}s for query: {query_obj}")
 
-    return resp.points
+    return TimedQueryResponse(
+        points=resp.points,
+        time=end_time - start_time,
+    )

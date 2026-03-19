@@ -64,7 +64,7 @@ def post_query():
     ctx = get_ctx()
 
     try:
-        points = run_similarity_search(
+        result = run_similarity_search(
             ctx,
             query_obj=q,
         )
@@ -72,7 +72,7 @@ def post_query():
         msg, status = parse_error(e)
         return jsonify({"error": msg}), status
 
-    return jsonify({"results": [serialize_point(p) for p in points]})
+    return jsonify({"results": [serialize_point(p) for p in result.points]})
 
 
 @web.get("/")
@@ -129,7 +129,7 @@ def post_query_view():
 
     ctx = get_ctx()
     try:
-        points = run_similarity_search(
+        result = run_similarity_search(
             ctx,
             query_obj=q,
         )
@@ -141,7 +141,7 @@ def post_query_view():
             error=msg,
         ), status
 
-    results = [serialize_point(p) for p in points]
+    results = [serialize_point(p) for p in result.points]
     return render_template(
         "partials/results_table.html",
         results=results,
