@@ -6,7 +6,7 @@ from loguru import logger
 from pydantic import BaseModel
 from qdrant_client.models import CollectionInfo
 
-from ..config import AppContext, load_settings
+from ..config import AppContext
 from ..core.models import Query, TextFeature, TimedQueryResponse
 from ..core.query import run_similarity_search
 
@@ -42,8 +42,7 @@ def run_eval(
     queries_toml: Path,
     output: Path,
 ):
-    settings = load_settings()
-    ctx = AppContext.from_settings(settings)
+    ctx = AppContext.from_env()
     config = EvalConfig.from_toml(queries_toml)
 
     limit = 50

@@ -1,17 +1,14 @@
 from loguru import logger
 
-from ..config import AppContext, load_settings
+from ..config import AppContext
 from ._flask import WrappedFlask
 
 
 def create_app() -> WrappedFlask:
     app = WrappedFlask(__name__)
 
-    settings = load_settings()
-
-    logger.info("Detected settings: " + str(settings))
-
-    ctx = AppContext.from_settings(settings)
+    ctx = AppContext.from_env()
+    logger.info("Detected settings: " + str(ctx.settings))
     app.ctx = ctx
 
     # Register API & Web routes

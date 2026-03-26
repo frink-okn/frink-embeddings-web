@@ -2,7 +2,7 @@ import json
 
 import typer
 
-from ..config import AppContext, load_settings
+from ..config import AppContext
 from ..core.models import Query, TextFeature
 from ..core.query import run_similarity_search
 
@@ -13,8 +13,7 @@ def search(
     exact: bool = False,
     limit: int = 10,
 ):
-    settings = load_settings()
-    ctx = AppContext.from_settings(settings)
+    ctx = AppContext.from_env()
 
     query = Query(
         include_graphs=[graph] if graph else None,

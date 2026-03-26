@@ -11,7 +11,7 @@ from qdrant_client.models import (
     SampleQuery,
 )
 
-from ..config import AppContext, load_settings
+from ..config import AppContext
 
 
 def sample_graph_points(
@@ -22,8 +22,7 @@ def sample_graph_points(
     For each graph collection, sample N points, and write them to individual
     parquet files.
     """
-    settings = load_settings()
-    ctx = AppContext.from_settings(settings)
+    ctx = AppContext.from_env()
 
     graph_facet = ctx.client.facet(
         collection_name=ctx.settings.qdrant_collection,
