@@ -168,29 +168,56 @@ def test_materialize_records_groups_duplicate_text_by_iris():
     assert grouped["value: different"] == [str(root_c)]
 
 
-def test_sample_types_reports_type_counts_samples_and_literal_predicates():
+def test_sample_types_reports_literal_and_object_predicate_evidence():
     graph = load_fixture("sample_types.ttl")
 
-    records = sample_types(graph, limit=1, values_limit=1)
+    records = sample_types(graph, limit=2, values_limit=1)
 
     by_type = {record.type: record for record in records}
     treatment = by_type["http://example.com/Treatment"]
 
     assert treatment.label == "Treatment"
     assert treatment.count == 2
-    assert treatment.sample_iris == ["http://example.com/treatmentA"]
+    assert treatment.sample_iris == [
+        "http://example.com/treatmentA",
+        "http://example.com/treatmentB",
+    ]
 
     predicates = {
         predicate.predicate: predicate
         for predicate in treatment.literal_predicates
     }
     assert predicates["http://schema.org/name"].label == "name"
-    assert predicates["http://schema.org/name"].count == 1
+    assert predicates["http://schema.org/name"].count == 2
     assert predicates["http://schema.org/name"].values == ["Treatment A"]
     assert predicates["http://purl.org/dc/terms/description"].label == (
         "description"
     )
     assert "http://example.com/linksTo" not in predicates
+
+    object_predicates = {
+        predicate.predicate: predicate
+        for predicate in treatment.object_predicates
+    }
+    links_to = object_predicates["http://example.com/linksTo"]
+
+    assert links_to.label == "links to"
+    assert links_to.count == 2
+    assert links_to.object_types[0].type == "http://example.com/Project"
+    assert links_to.object_types[0].label == "Project"
+    assert links_to.object_types[0].count == 2
+
+    label_predicates = {
+        predicate.predicate: predicate
+        for predicate in links_to.object_label_predicates
+    }
+    assert label_predicates["http://schema.org/name"].values == ["Project A"]
+    assert label_predicates["http://purl.org/dc/terms/description"].values == [
+        "A project"
+    ]
+    assert links_to.sample_objects[0].iri == "http://example.com/projectA"
+    assert links_to.sample_objects[0].label == "project A"
+    assert links_to.sample_objects[0].types == ["http://example.com/Project"]
 
 
 def test_sample_targets_uses_configured_materialization():

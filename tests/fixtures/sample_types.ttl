@@ -20,9 +20,15 @@ ex:treatmentB
     a ex:Treatment ;
     schema:name "Treatment B" ;
     dc:description "Second treatment" ;
-    ex:score "20" .
+    ex:score "20" ;
+    ex:linksTo ex:projectB .
 
 ex:projectA
     a ex:Project ;
     schema:name "Project A" ;
     dc:description "A project" .
+
+ex:projectB
+    a ex:Project ;
+    schema:name "Project B" ;
+    dc:description "Another project" .
