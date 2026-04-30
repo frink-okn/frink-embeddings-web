@@ -1,17 +1,26 @@
-from collections import Counter
+import hashlib
+import json
+from collections import defaultdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Generator, Iterable
 
 import typer
-from rdflib import Graph, Literal, Node, URIRef
+from rdflib import BNode, Graph, Literal, Node, URIRef
 from rdflib.namespace import RDF
 from rdflib_hdt import HDTStore
 
-from .models import MaterializationConfiguration
+from .models import GraphConfiguration, MaterializationConfiguration
 
-LABEL_PREDICATES = ("http://www.w3.org/2000/01/rdf-schema#label",)
+RDFS_LABEL = "http://www.w3.org/2000/01/rdf-schema#label"
 
 app = typer.Typer()
+
+
+@dataclass
+class OutputRecord:
+    iris: list[str]
+    embedding_text: str
 
 
 def load_graph(hdt_file: Path):
@@ -45,6 +54,13 @@ def fallback_label(iri: str) -> str:
     return humanize(iri_fragment(iri))
 
 
+def effective_label_predicates(config: GraphConfiguration) -> list[str]:
+    predicates = [*config.label_predicates]
+    if config.include_rdfs_label and RDFS_LABEL not in predicates:
+        predicates.append(RDFS_LABEL)
+    return predicates
+
+
 def first_literal(graph: Graph, s: Node, ps: Iterable[str]):
     for p in ps:
         for o in graph.objects(s, URIRef(p)):
@@ -53,65 +69,202 @@ def first_literal(graph: Graph, s: Node, ps: Iterable[str]):
     return None
 
 
-def best_label(graph: Graph, node: Any, use_fallback=True, use_humanize=True):
+def best_label(
+    graph: Graph,
+    node: Any,
+    config: GraphConfiguration | None = None,
+    use_fallback=True,
+    use_humanize=True,
+):
     if isinstance(node, Literal):
         return str(node)
 
+    label_predicates = (
+        effective_label_predicates(config)
+        if config is not None
+        else (RDFS_LABEL,)
+    )
+
     if isinstance(node, Node):
-        label = first_literal(graph, node, LABEL_PREDICATES)
+        label = first_literal(graph, node, label_predicates)
         if label:
             return label
 
     if isinstance(node, URIRef) and use_fallback:
-        return humanize(iri_fragment(node)) if use_humanize else str(node)
+        return humanize(iri_fragment(str(node))) if use_humanize else str(node)
 
     return None
+
+
+def predicate_text(graph: Graph, pred: URIRef, config: GraphConfiguration):
+    label = best_label(graph, pred, config)
+    if not label:
+        label = fallback_label(str(pred))
+    return humanize(label).lower()
+
+
+def stable_score(root: Node, pred: Node, obj: Node) -> str:
+    text = f"{root}\t{pred}\t{obj}"
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def walk_graph(
     graph: Graph,
     root: Node,
-    *,
+    config: GraphConfiguration,
     expansion_level=0,
-    expansion_limit=1,
-    predicate_limit: int | None = None,
-    ignore_predicates: Iterable[str] | None = None,
 ) -> Generator[tuple[int, Node, Node, Node], None, None]:
-    p_counts = Counter[str]()
-
-    if ignore_predicates is None:
+    if config.ignore_predicates is None:
         ignore_predicates = set()
     else:
-        ignore_predicates = set(ignore_predicates)
+        ignore_predicates = set(config.ignore_predicates)
+
+    objects_by_predicate: defaultdict[Node, list[Node]] = defaultdict(list)
 
     for p, o in graph.predicate_objects(root):
         p_str = str(p)
         if p_str in ignore_predicates:
             continue
-        p_count = p_counts.get(p_str, 0)
-        if predicate_limit is not None and p_count >= predicate_limit:
+        objects_by_predicate[p].append(o)
+
+    for p in sorted(objects_by_predicate, key=str):
+        objects = objects_by_predicate[p]
+        if config.predicate_limit is not None:
+            objects = sorted(
+                objects,
+                key=lambda o: stable_score(root, p, o),
+            )[: config.predicate_limit]
+
+        for o in objects:
+            yield expansion_level, root, p, o
+
+            if (
+                not isinstance(o, Literal)
+                and expansion_level < config.expansion_limit
+            ):
+                yield from walk_graph(
+                    graph,
+                    o,
+                    config,
+                    expansion_level=expansion_level + 1,
+                )
+
+
+def build_graph(
+    graph: Graph,
+    root: Node,
+    config: GraphConfiguration,
+) -> Graph:
+    g = Graph()
+
+    for _, s, p, o in walk_graph(graph, root, config):
+        g.add((s, p, o))
+
+    return g
+
+
+def build_embedding_text(
+    graph: Graph,
+    root: Node,
+    config: GraphConfiguration,
+) -> str:
+    lines: list[str] = []
+
+    label = best_label(graph, root, config, use_fallback=False)
+    if label:
+        lines.append(f"entity: {label}")
+
+    for level, _, p, o in walk_graph(graph, root, config):
+        if not isinstance(p, URIRef):
             continue
-        p_counts[p_str] += 1
 
-        yield expansion_level, root, p, o
+        pred_txt = predicate_text(graph, p, config)
+        obj_txt = best_label(graph, o, config)
 
-        if not isinstance(o, Literal) and expansion_level < expansion_limit:
-            yield from walk_graph(
-                graph,
-                o,
-                expansion_level=expansion_level + 1,
-                expansion_limit=expansion_limit,
-                predicate_limit=predicate_limit,
-                ignore_predicates=ignore_predicates,
-            )
+        if not obj_txt or isinstance(o, BNode):
+            continue
+
+        indent = "  " * level
+        lines.append(f"{indent}{pred_txt}: {obj_txt}")
+
+    return "\n".join(lines)
+
+
+def root_iris(graph: Graph, root_type: str):
+    for node in graph.subjects(RDF.type, URIRef(root_type)):
+        if isinstance(node, URIRef):
+            yield str(node)
+
+
+def text_digest(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def materialize_records(
+    graph: Graph,
+    config: MaterializationConfiguration,
+    target: str | None = None,
+    limit: int | None = None,
+) -> list[OutputRecord]:
+    target_configs = (
+        [config.for_target(target)] if target else list(config.iter_targets())
+    )
+
+    by_digest: dict[str, OutputRecord] = {}
+
+    for target_config in target_configs:
+        count = 0
+        for iri in root_iris(graph, target_config.type):
+            if limit is not None and count >= limit:
+                break
+            count += 1
+
+            text = build_embedding_text(graph, URIRef(iri), target_config)
+            digest = text_digest(text)
+
+            record = by_digest.get(digest)
+            if record is None:
+                by_digest[digest] = OutputRecord(
+                    iris=[iri],
+                    embedding_text=text,
+                )
+            elif iri not in record.iris:
+                record.iris.append(iri)
+
+    records = list(by_digest.values())
+    for record in records:
+        record.iris.sort()
+    return sorted(records, key=lambda r: (r.embedding_text, r.iris))
+
+
+def write_json(records: Iterable[OutputRecord], output_path: Path):
+    with output_path.open("w", encoding="utf-8") as f:
+        json.dump(
+            [asdict(r) for r in records],
+            f,
+            indent=2,
+            ensure_ascii=False,
+        )
+
+
+def write_text(records: Iterable[OutputRecord], output_path: Path):
+    with output_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write("iris:\n")
+            for iri in r.iris:
+                f.write(f"- {iri}\n")
+            f.write("\n")
+            f.write(r.embedding_text)
+            f.write("\n\n---\n\n")
 
 
 @app.command()
 def materialize_type(hdt_file: Path, target_type: str):
     graph = load_graph(hdt_file)
+    config = GraphConfiguration()
 
     for node_uri in graph.subjects(RDF.type, URIRef(target_type)):
-        build_embedding_text(graph, node_uri)
+        build_embedding_text(graph, node_uri, config)
 
 
 @app.command()
@@ -122,7 +275,22 @@ def materialize(hdt_file: Path, config_toml: Path):
     for target_config in config.iter_targets():
         for node_uri in graph.subjects(RDF.type, URIRef(target_config.type)):
             for level, s, p, o in walk_graph(
-                graph, node_uri, expansion_limit=2
+                graph, node_uri, target_config
+            ):
+                print("    " * level, end="")
+                print(level, s, p, o)
+            break
+
+
+@app.command()
+def materialize_debug(hdt_file: Path, config_toml: Path):
+    graph = load_graph(hdt_file)
+    config = MaterializationConfiguration.from_toml(config_toml)
+
+    for target_config in config.iter_targets():
+        for node_uri in graph.subjects(RDF.type, URIRef(target_config.type)):
+            for level, s, p, o in walk_graph(
+                graph, node_uri, target_config
             ):
                 print("    " * level, end="")
                 print(level, s, p, o)

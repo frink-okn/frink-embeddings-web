@@ -1,4 +1,27 @@
-from frink_embeddings_web.indexing.index import fallback_label, humanize
+from pathlib import Path
+
+from rdflib import Graph, Literal, URIRef
+from rdflib.namespace import RDF, RDFS
+
+from frink_embeddings_web.indexing.index import (
+    build_embedding_text,
+    effective_label_predicates,
+    fallback_label,
+    humanize,
+    materialize_records,
+    stable_score,
+    walk_graph,
+)
+from frink_embeddings_web.indexing.models import (
+    GraphConfiguration,
+    MaterializationConfiguration,
+)
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def load_fixture(name: str) -> Graph:
+    return Graph().parse(FIXTURES / name, format="turtle")
 
 
 def test_humanize_text():
@@ -12,3 +35,133 @@ def test_url_fallback():
     assert fallback_label(
         "http://example.com/ontology#hasAttribute"
     ) == "has Attribute"
+
+
+def test_config_merges_defaults_and_target_overrides():
+    config = MaterializationConfiguration.model_validate(
+        {
+            "defaults": {
+                "label_predicates": ["http://example.com/defaultLabel"],
+                "ignore_predicates": ["http://example.com/ignoreDefault"],
+                "predicate_limit": 3,
+                "expansion_limit": 1,
+                "include_rdfs_label": False,
+            },
+            "targets": {
+                "thing": {
+                    "type": "http://example.com/Thing",
+                    "label_predicates": ["http://example.com/targetLabel"],
+                    "ignore_predicates": ["http://example.com/ignoreTarget"],
+                    "predicate_limit": 2,
+                    "expansion_limit": 2,
+                    "include_rdfs_label": True,
+                }
+            },
+        }
+    )
+
+    target = config.for_target("thing")
+
+    assert target.label_predicates == [
+        "http://example.com/defaultLabel",
+        "http://example.com/targetLabel",
+    ]
+    assert target.ignore_predicates == [
+        "http://example.com/ignoreDefault",
+        "http://example.com/ignoreTarget",
+    ]
+    assert target.predicate_limit == 2
+    assert target.expansion_limit == 2
+    assert target.include_rdfs_label is True
+
+
+def test_effective_label_predicates_can_include_rdfs_label():
+    config = GraphConfiguration(
+        label_predicates=["http://example.com/name"],
+        include_rdfs_label=True,
+    )
+
+    assert effective_label_predicates(config) == [
+        "http://example.com/name",
+        str(RDFS.label),
+    ]
+
+
+def test_effective_label_predicates_can_exclude_rdfs_label():
+    config = GraphConfiguration(
+        label_predicates=["http://example.com/name"],
+        include_rdfs_label=False,
+    )
+
+    assert effective_label_predicates(config) == ["http://example.com/name"]
+
+
+def test_walk_graph_uses_ignore_predicates_limit_and_depth():
+    graph = load_fixture("walk_graph.ttl")
+    root = URIRef("http://example.com/root")
+    pred = URIRef("http://example.com/hasPart")
+    ignored = URIRef("http://example.com/ignored")
+    leaf_pred = URIRef("http://example.com/leaf")
+    objects = [
+        URIRef("http://example.com/objectA"),
+        URIRef("http://example.com/objectB"),
+        URIRef("http://example.com/objectC"),
+    ]
+
+    config = GraphConfiguration(
+        ignore_predicates=[str(ignored)],
+        predicate_limit=2,
+        expansion_limit=1,
+    )
+
+    triples = list(walk_graph(graph, root, config))
+    selected_objects = sorted(
+        objects,
+        key=lambda o: stable_score(root, pred, o),
+    )
+
+    assert (0, root, ignored, Literal("skip me")) not in triples
+    assert [triple[3] for triple in triples if triple[1] == root] == (
+        selected_objects[:2]
+    )
+    assert any(level == 1 and p == leaf_pred for level, _, p, _ in triples)
+
+
+def test_build_embedding_text_formats_labels_literals_and_nested_nodes():
+    graph = load_fixture("embedding_text.ttl")
+    root = URIRef("http://example.com/root")
+    config = GraphConfiguration(expansion_limit=1)
+
+    text = build_embedding_text(graph, root, config)
+
+    assert "entity: Root label" in text
+    assert "related predicate: Related label" in text
+    assert "has score: 42" in text
+    assert "  nested name: Nested literal" in text
+
+
+def test_materialize_records_groups_duplicate_text_by_iris():
+    graph = load_fixture("dedupe.ttl")
+    root_type = URIRef("http://example.com/Thing")
+    root_a = URIRef("http://example.com/a")
+    root_b = URIRef("http://example.com/b")
+    root_c = URIRef("http://example.com/c")
+
+    config = MaterializationConfiguration.model_validate(
+        {
+            "targets": {
+                "thing": {
+                    "type": str(root_type),
+                    "ignore_predicates": [str(RDF.type)],
+                    "include_rdfs_label": False,
+                }
+            }
+        }
+    )
+
+    records = materialize_records(graph, config)
+
+    assert len(records) == 2
+    grouped = {record.embedding_text: record.iris for record in records}
+    assert grouped["value: same"] == [str(root_a), str(root_b)]
+    assert grouped["value: different"] == [str(root_c)]

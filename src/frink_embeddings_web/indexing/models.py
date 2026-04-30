@@ -8,6 +8,7 @@ class GraphConfiguration(BaseModel):
     label_predicates: list[str] = Field(default_factory=list)
     ignore_predicates: list[str] = Field(default_factory=list)
     predicate_limit: int | None = None
+    expansion_limit: int = 1
     include_rdfs_label: bool = True
 
 
@@ -53,6 +54,10 @@ class MaterializationConfiguration(BaseModel):
         if "predicate_limit" in target.model_fields_set:
             predicate_limit = target.predicate_limit
 
+        expansion_limit = defaults.expansion_limit
+        if "expansion_limit" in target.model_fields_set:
+            expansion_limit = target.expansion_limit
+
         include_rdfs_label = True
         if "include_rdfs_label" in defaults.model_fields_set:
             include_rdfs_label = defaults.include_rdfs_label
@@ -64,5 +69,6 @@ class MaterializationConfiguration(BaseModel):
             label_predicates=label_predicates,
             ignore_predicates=ignore_predicates,
             predicate_limit=predicate_limit,
+            expansion_limit=expansion_limit,
             include_rdfs_label=include_rdfs_label,
         )
