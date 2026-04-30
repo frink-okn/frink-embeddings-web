@@ -16,6 +16,7 @@ from frink_embeddings_web.indexing.models import (
     GraphConfiguration,
     MaterializationConfiguration,
 )
+from frink_embeddings_web.indexing.sample import sample_targets, sample_types
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -165,3 +166,53 @@ def test_materialize_records_groups_duplicate_text_by_iris():
     grouped = {record.embedding_text: record.iris for record in records}
     assert grouped["value: same"] == [str(root_a), str(root_b)]
     assert grouped["value: different"] == [str(root_c)]
+
+
+def test_sample_types_reports_type_counts_samples_and_literal_predicates():
+    graph = load_fixture("sample_types.ttl")
+
+    records = sample_types(graph, limit=1, values_limit=1)
+
+    by_type = {record.type: record for record in records}
+    treatment = by_type["http://example.com/Treatment"]
+
+    assert treatment.label == "Treatment"
+    assert treatment.count == 2
+    assert treatment.sample_iris == ["http://example.com/treatmentA"]
+
+    predicates = {
+        predicate.predicate: predicate
+        for predicate in treatment.literal_predicates
+    }
+    assert predicates["http://schema.org/name"].label == "name"
+    assert predicates["http://schema.org/name"].count == 1
+    assert predicates["http://schema.org/name"].values == ["Treatment A"]
+    assert predicates["http://purl.org/dc/terms/description"].label == (
+        "description"
+    )
+    assert "http://example.com/linksTo" not in predicates
+
+
+def test_sample_targets_uses_configured_materialization():
+    graph = load_fixture("dedupe.ttl")
+    root_type = URIRef("http://example.com/Thing")
+
+    config = MaterializationConfiguration.model_validate(
+        {
+            "targets": {
+                "thing": {
+                    "type": str(root_type),
+                    "ignore_predicates": [str(RDF.type)],
+                    "include_rdfs_label": False,
+                }
+            }
+        }
+    )
+
+    records = sample_targets(graph, config, limit=1)
+
+    assert len(records) == 1
+    assert records[0].target == "thing"
+    assert records[0].type == str(root_type)
+    assert len(records[0].records) == 1
+    assert records[0].records[0].embedding_text == "value: same"
