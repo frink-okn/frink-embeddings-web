@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -20,6 +21,7 @@ app = typer.Typer()
 @dataclass
 class OutputRecord:
     iris: list[str]
+    label: str
     embedding_text: str
 
 
@@ -101,6 +103,10 @@ def predicate_text(graph: Graph, pred: URIRef, config: GraphConfiguration):
     if not label:
         label = fallback_label(str(pred))
     return humanize(label).lower()
+
+
+def normalize_label(text: str) -> str:
+    return " ".join(text.split())
 
 
 def stable_score(root: Node, pred: Node, obj: Node) -> str:
@@ -190,6 +196,63 @@ def build_embedding_text(
     return "\n".join(lines)
 
 
+def first_direct_value(
+    graph: Graph,
+    root: Node,
+    predicate_iri: str,
+    config: GraphConfiguration,
+) -> str | None:
+    values = []
+
+    for obj in graph.objects(root, URIRef(predicate_iri)):
+        if isinstance(obj, BNode):
+            continue
+        label = best_label(graph, obj, config)
+        if label:
+            values.append(label)
+
+    if not values:
+        return None
+
+    return sorted(values)[0]
+
+
+def render_label_template(
+    graph: Graph,
+    root: Node,
+    config: GraphConfiguration,
+) -> str | None:
+    if not config.label_template:
+        return None
+
+    def replace(match: re.Match[str]) -> str:
+        field = match.group(1).strip()
+        predicate_iri = config.label_fields.get(field)
+        if predicate_iri is None:
+            return ""
+        return first_direct_value(graph, root, predicate_iri, config) or ""
+
+    label = re.sub(r"\{([^{}]+)\}", replace, config.label_template)
+    label = normalize_label(label)
+    return label or None
+
+
+def display_label(
+    graph: Graph,
+    root: Node,
+    config: GraphConfiguration,
+) -> str:
+    label = render_label_template(graph, root, config)
+    if label:
+        return label
+
+    label = best_label(graph, root, config)
+    if label:
+        return normalize_label(label)
+
+    return str(root)
+
+
 def root_iris(graph: Graph, root_type: str):
     for node in graph.subjects(RDF.type, URIRef(root_type)):
         if isinstance(node, URIRef):
@@ -221,11 +284,13 @@ def materialize_records(
 
             text = build_embedding_text(graph, URIRef(iri), target_config)
             digest = text_digest(text)
+            label = display_label(graph, URIRef(iri), target_config)
 
             record = by_digest.get(digest)
             if record is None:
                 by_digest[digest] = OutputRecord(
                     iris=[iri],
+                    label=label,
                     embedding_text=text,
                 )
             elif iri not in record.iris:
@@ -250,6 +315,7 @@ def write_json(records: Iterable[OutputRecord], output_path: Path):
 def write_text(records: Iterable[OutputRecord], output_path: Path):
     with output_path.open("w", encoding="utf-8") as f:
         for r in records:
+            f.write(f"label: {r.label}\n")
             f.write("iris:\n")
             for iri in r.iris:
                 f.write(f"- {iri}\n")

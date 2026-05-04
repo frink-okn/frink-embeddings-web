@@ -5,6 +5,7 @@ from rdflib.namespace import RDF, RDFS
 
 from frink_embeddings_web.indexing.index import (
     build_embedding_text,
+    display_label,
     effective_label_predicates,
     fallback_label,
     humanize,
@@ -43,6 +44,9 @@ def test_config_merges_defaults_and_target_overrides():
         {
             "defaults": {
                 "label_predicates": ["http://example.com/defaultLabel"],
+                "label_fields": {
+                    "default_id": "http://example.com/defaultId"
+                },
                 "ignore_predicates": ["http://example.com/ignoreDefault"],
                 "predicate_limit": 3,
                 "expansion_limit": 1,
@@ -52,6 +56,10 @@ def test_config_merges_defaults_and_target_overrides():
                 "thing": {
                     "type": "http://example.com/Thing",
                     "label_predicates": ["http://example.com/targetLabel"],
+                    "label_template": "{name}: {default_id}",
+                    "label_fields": {
+                        "name": "http://example.com/name",
+                    },
                     "ignore_predicates": ["http://example.com/ignoreTarget"],
                     "predicate_limit": 2,
                     "expansion_limit": 2,
@@ -67,6 +75,11 @@ def test_config_merges_defaults_and_target_overrides():
         "http://example.com/defaultLabel",
         "http://example.com/targetLabel",
     ]
+    assert target.label_template == "{name}: {default_id}"
+    assert target.label_fields == {
+        "default_id": "http://example.com/defaultId",
+        "name": "http://example.com/name",
+    }
     assert target.ignore_predicates == [
         "http://example.com/ignoreDefault",
         "http://example.com/ignoreTarget",
@@ -141,6 +154,20 @@ def test_build_embedding_text_formats_labels_literals_and_nested_nodes():
     assert "  nested name: Nested literal" in text
 
 
+def test_display_label_uses_template_fields_with_fallback():
+    graph = load_fixture("embedding_text.ttl")
+    root = URIRef("http://example.com/root")
+    config = GraphConfiguration(
+        label_template="{name}: {score}",
+        label_fields={
+            "name": str(RDFS.label),
+            "score": "http://example.com/has-score",
+        },
+    )
+
+    assert display_label(graph, root, config) == "Root label: 42"
+
+
 def test_materialize_records_groups_duplicate_text_by_iris():
     graph = load_fixture("dedupe.ttl")
     root_type = URIRef("http://example.com/Thing")
@@ -166,6 +193,8 @@ def test_materialize_records_groups_duplicate_text_by_iris():
     grouped = {record.embedding_text: record.iris for record in records}
     assert grouped["value: same"] == [str(root_a), str(root_b)]
     assert grouped["value: different"] == [str(root_c)]
+    labels = {record.embedding_text: record.label for record in records}
+    assert labels["value: same"] == "a"
 
 
 def test_sample_types_reports_literal_and_object_predicate_evidence():

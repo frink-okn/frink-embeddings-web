@@ -343,6 +343,7 @@ def write_sample_targets_text(
             f.write(f"target: {target_record.target}\n")
             f.write(f"type: {target_record.type}\n\n")
             for record in target_record.records:
+                f.write(f"label: {record.label}\n")
                 f.write("iris:\n")
                 for iri in record.iris:
                     f.write(f"- {iri}\n")
