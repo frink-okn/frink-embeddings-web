@@ -11,7 +11,11 @@ from rdflib import BNode, Graph, Literal, Node, URIRef
 from rdflib.namespace import RDF
 from rdflib_hdt import HDTStore
 
-from .models import GraphConfiguration, MaterializationConfiguration
+from .models import (
+    GraphConfiguration,
+    LabelProfileConfiguration,
+    MaterializationConfiguration,
+)
 
 RDFS_LABEL = "http://www.w3.org/2000/01/rdf-schema#label"
 
@@ -173,25 +177,40 @@ def build_embedding_text(
     graph: Graph,
     root: Node,
     config: GraphConfiguration,
+    label: str | None = None,
+    materialization_config: MaterializationConfiguration | None = None,
 ) -> str:
     lines: list[str] = []
 
-    label = best_label(graph, root, config, use_fallback=False)
+    if label is None:
+        label = display_label(
+            graph,
+            root,
+            config,
+            materialization_config=materialization_config,
+        )
     if label:
-        lines.append(f"entity: {label}")
+        lines.append(f"label: {label}")
 
     for level, _, p, o in walk_graph(graph, root, config):
+        if level > 0:
+            continue
         if not isinstance(p, URIRef):
             continue
 
         pred_txt = predicate_text(graph, p, config)
-        obj_txt = best_label(graph, o, config)
+        obj_txt = display_label(
+            graph,
+            o,
+            config,
+            materialization_config=materialization_config,
+            use_target_template=False,
+        )
 
         if not obj_txt or isinstance(o, BNode):
             continue
 
-        indent = "  " * level
-        lines.append(f"{indent}{pred_txt}: {obj_txt}")
+        lines.append(f"{pred_txt}: {obj_txt}")
 
     return "\n".join(lines)
 
@@ -201,13 +220,20 @@ def first_direct_value(
     root: Node,
     predicate_iri: str,
     config: GraphConfiguration,
+    materialization_config: MaterializationConfiguration | None = None,
 ) -> str | None:
     values = []
 
     for obj in graph.objects(root, URIRef(predicate_iri)):
         if isinstance(obj, BNode):
             continue
-        label = best_label(graph, obj, config)
+        label = display_label(
+            graph,
+            obj,
+            config,
+            materialization_config=materialization_config,
+            use_target_template=False,
+        )
         if label:
             values.append(label)
 
@@ -217,34 +243,123 @@ def first_direct_value(
     return sorted(values)[0]
 
 
+def render_template(
+    graph: Graph,
+    root: Node,
+    template: str,
+    fields: dict[str, str],
+    config: GraphConfiguration,
+    materialization_config: MaterializationConfiguration | None = None,
+) -> str | None:
+    def replace(match: re.Match[str]) -> str:
+        field = match.group(1).strip()
+        predicate_iri = fields.get(field)
+        if predicate_iri is None:
+            return ""
+        return (
+            first_direct_value(
+                graph,
+                root,
+                predicate_iri,
+                config,
+                materialization_config=materialization_config,
+            )
+            or ""
+        )
+
+    label = re.sub(r"\{([^{}]+)\}", replace, template)
+    label = normalize_label(label)
+    return label or None
+
+
 def render_label_template(
     graph: Graph,
     root: Node,
     config: GraphConfiguration,
+    materialization_config: MaterializationConfiguration | None = None,
 ) -> str | None:
-    if not config.label_template:
+    template = getattr(config, "label_template", None)
+    fields = getattr(config, "label_fields", {})
+    if not template:
         return None
+    return render_template(
+        graph,
+        root,
+        template,
+        fields,
+        config,
+        materialization_config=materialization_config,
+    )
 
-    def replace(match: re.Match[str]) -> str:
-        field = match.group(1).strip()
-        predicate_iri = config.label_fields.get(field)
-        if predicate_iri is None:
-            return ""
-        return first_direct_value(graph, root, predicate_iri, config) or ""
 
-    label = re.sub(r"\{([^{}]+)\}", replace, config.label_template)
-    label = normalize_label(label)
-    return label or None
+def render_profile_label(
+    graph: Graph,
+    root: Node,
+    profile: LabelProfileConfiguration,
+    config: GraphConfiguration,
+    materialization_config: MaterializationConfiguration | None = None,
+) -> str | None:
+    return render_template(
+        graph,
+        root,
+        profile.template,
+        profile.fields,
+        config,
+        materialization_config=materialization_config,
+    )
+
+
+def label_profile_for_node(
+    graph: Graph,
+    node: Node,
+    config: MaterializationConfiguration,
+) -> LabelProfileConfiguration | None:
+    for type_node in graph.objects(node, RDF.type):
+        if isinstance(type_node, URIRef):
+            profile = config.label_profile_for_type(str(type_node))
+            if profile is not None:
+                return profile
+    return None
 
 
 def display_label(
     graph: Graph,
     root: Node,
     config: GraphConfiguration,
+    materialization_config: MaterializationConfiguration | None = None,
+    use_target_template: bool = True,
 ) -> str:
-    label = render_label_template(graph, root, config)
-    if label:
-        return label
+    if materialization_config is not None:
+        profile = None
+        profile_name = getattr(config, "label_profile", None)
+        if use_target_template and profile_name:
+            profile = materialization_config.label_profiles.get(profile_name)
+        if profile is None:
+            profile = label_profile_for_node(
+                graph,
+                root,
+                materialization_config,
+            )
+        if profile is not None:
+            label = render_profile_label(
+                graph,
+                root,
+                profile,
+                config,
+                materialization_config=materialization_config,
+            )
+            if label:
+                return label
+
+    if use_target_template:
+        label = render_label_template(
+            graph,
+            root,
+            config,
+            materialization_config=materialization_config,
+        )
+        if label:
+            return label
 
     label = best_label(graph, root, config)
     if label:
@@ -282,9 +397,21 @@ def materialize_records(
                 break
             count += 1
 
-            text = build_embedding_text(graph, URIRef(iri), target_config)
+            node = URIRef(iri)
+            label = display_label(
+                graph,
+                node,
+                target_config,
+                materialization_config=config,
+            )
+            text = build_embedding_text(
+                graph,
+                node,
+                target_config,
+                label=label,
+                materialization_config=config,
+            )
             digest = text_digest(text)
-            label = display_label(graph, URIRef(iri), target_config)
 
             record = by_digest.get(digest)
             if record is None:

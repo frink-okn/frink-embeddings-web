@@ -6,16 +6,23 @@ from pydantic import BaseModel, Field
 
 class GraphConfiguration(BaseModel):
     label_predicates: list[str] = Field(default_factory=list)
-    label_template: str | None = None
-    label_fields: dict[str, str] = Field(default_factory=dict)
     ignore_predicates: list[str] = Field(default_factory=list)
     predicate_limit: int | None = None
     expansion_limit: int = 1
     include_rdfs_label: bool = True
 
 
+class LabelProfileConfiguration(BaseModel):
+    type: str
+    template: str
+    fields: dict[str, str] = Field(default_factory=dict)
+
+
 class TargetConfiguration(GraphConfiguration):
     type: str
+    label_profile: str | None = None
+    label_template: str | None = None
+    label_fields: dict[str, str] = Field(default_factory=dict)
 
 
 class ResolvedTargetConfiguration(TargetConfiguration):
@@ -24,6 +31,9 @@ class ResolvedTargetConfiguration(TargetConfiguration):
 
 class MaterializationConfiguration(BaseModel):
     defaults: GraphConfiguration = Field(default_factory=GraphConfiguration)
+    label_profiles: dict[str, LabelProfileConfiguration] = Field(
+        default_factory=dict
+    )
     targets: dict[str, TargetConfiguration]
 
     @staticmethod
@@ -44,14 +54,6 @@ class MaterializationConfiguration(BaseModel):
         for predicate in target.label_predicates:
             if predicate not in label_predicates:
                 label_predicates.append(predicate)
-
-        label_template = None
-        if "label_template" in defaults.model_fields_set:
-            label_template = defaults.label_template
-        if "label_template" in target.model_fields_set:
-            label_template = target.label_template
-
-        label_fields = {**defaults.label_fields, **target.label_fields}
 
         ignore_predicates = [*defaults.ignore_predicates]
         for predicate in target.ignore_predicates:
@@ -77,10 +79,20 @@ class MaterializationConfiguration(BaseModel):
         return ResolvedTargetConfiguration(
             type=target.type,
             label_predicates=label_predicates,
-            label_template=label_template,
-            label_fields=label_fields,
             ignore_predicates=ignore_predicates,
             predicate_limit=predicate_limit,
             expansion_limit=expansion_limit,
             include_rdfs_label=include_rdfs_label,
+            label_profile=target.label_profile,
+            label_template=target.label_template,
+            label_fields=target.label_fields,
         )
+
+    def label_profile_for_type(
+        self,
+        type_iri: str,
+    ) -> LabelProfileConfiguration | None:
+        for profile in self.label_profiles.values():
+            if profile.type == type_iri:
+                return profile
+        return None

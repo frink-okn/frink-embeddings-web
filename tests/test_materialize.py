@@ -44,9 +44,6 @@ def test_config_merges_defaults_and_target_overrides():
         {
             "defaults": {
                 "label_predicates": ["http://example.com/defaultLabel"],
-                "label_fields": {
-                    "default_id": "http://example.com/defaultId"
-                },
                 "ignore_predicates": ["http://example.com/ignoreDefault"],
                 "predicate_limit": 3,
                 "expansion_limit": 1,
@@ -55,8 +52,9 @@ def test_config_merges_defaults_and_target_overrides():
             "targets": {
                 "thing": {
                     "type": "http://example.com/Thing",
+                    "label_profile": "thing_label",
                     "label_predicates": ["http://example.com/targetLabel"],
-                    "label_template": "{name}: {default_id}",
+                    "label_template": "{name}",
                     "label_fields": {
                         "name": "http://example.com/name",
                     },
@@ -75,9 +73,9 @@ def test_config_merges_defaults_and_target_overrides():
         "http://example.com/defaultLabel",
         "http://example.com/targetLabel",
     ]
-    assert target.label_template == "{name}: {default_id}"
+    assert target.label_profile == "thing_label"
+    assert target.label_template == "{name}"
     assert target.label_fields == {
-        "default_id": "http://example.com/defaultId",
         "name": "http://example.com/name",
     }
     assert target.ignore_predicates == [
@@ -148,24 +146,74 @@ def test_build_embedding_text_formats_labels_literals_and_nested_nodes():
 
     text = build_embedding_text(graph, root, config)
 
-    assert "entity: Root label" in text
+    assert "label: Root label" in text
     assert "related predicate: Related label" in text
     assert "has score: 42" in text
-    assert "  nested name: Nested literal" in text
+    assert "nested name: Nested literal" not in text
 
 
-def test_display_label_uses_template_fields_with_fallback():
+def test_display_label_uses_target_template_fields_with_fallback():
     graph = load_fixture("embedding_text.ttl")
     root = URIRef("http://example.com/root")
-    config = GraphConfiguration(
-        label_template="{name}: {score}",
-        label_fields={
-            "name": str(RDFS.label),
-            "score": "http://example.com/has-score",
-        },
+    config = MaterializationConfiguration.model_validate(
+        {
+            "targets": {
+                "thing": {
+                    "type": "http://example.com/Thing",
+                    "label_template": "{name}: {score}",
+                    "label_fields": {
+                        "name": str(RDFS.label),
+                        "score": "http://example.com/has-score",
+                    },
+                }
+            }
+        }
+    )
+    target = config.for_target("thing")
+
+    assert (
+        display_label(
+            graph,
+            root,
+            target,
+            materialization_config=config,
+        )
+        == "Root label: 42"
     )
 
-    assert display_label(graph, root, config) == "Root label: 42"
+
+def test_display_label_uses_label_profile_for_non_target_nodes():
+    graph = load_fixture("embedding_text.ttl")
+    related = URIRef("http://example.com/relatedThing")
+    config = MaterializationConfiguration.model_validate(
+        {
+            "label_profiles": {
+                "related": {
+                    "type": "http://example.com/Related",
+                    "template": "profile: {name}",
+                    "fields": {
+                        "name": str(RDFS.label),
+                    },
+                }
+            },
+            "targets": {
+                "thing": {
+                    "type": "http://example.com/Thing",
+                }
+            },
+        }
+    )
+    graph.add((related, RDF.type, URIRef("http://example.com/Related")))
+
+    assert (
+        display_label(
+            graph,
+            related,
+            config.for_target("thing"),
+            materialization_config=config,
+        )
+        == "profile: Related label"
+    )
 
 
 def test_materialize_records_groups_duplicate_text_by_iris():
@@ -189,12 +237,13 @@ def test_materialize_records_groups_duplicate_text_by_iris():
 
     records = materialize_records(graph, config)
 
-    assert len(records) == 2
+    assert len(records) == 3
     grouped = {record.embedding_text: record.iris for record in records}
-    assert grouped["value: same"] == [str(root_a), str(root_b)]
-    assert grouped["value: different"] == [str(root_c)]
+    assert grouped["label: a\nvalue: same"] == [str(root_a)]
+    assert grouped["label: b\nvalue: same"] == [str(root_b)]
+    assert grouped["label: c\nvalue: different"] == [str(root_c)]
     labels = {record.embedding_text: record.label for record in records}
-    assert labels["value: same"] == "a"
+    assert labels["label: a\nvalue: same"] == "a"
 
 
 def test_sample_types_reports_literal_and_object_predicate_evidence():
@@ -271,4 +320,4 @@ def test_sample_targets_uses_configured_materialization():
     assert records[0].target == "thing"
     assert records[0].type == str(root_type)
     assert len(records[0].records) == 1
-    assert records[0].records[0].embedding_text == "value: same"
+    assert records[0].records[0].embedding_text == "label: a\nvalue: same"
