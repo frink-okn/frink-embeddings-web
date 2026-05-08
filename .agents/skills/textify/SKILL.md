@@ -17,7 +17,7 @@ The `frink-indexing` CLI is used to explore an HDT graph, evaluate candidate con
 
 - `frink-indexing sample-types`: graph exploration. Use this before drafting a config. It scans RDF types, counts instances, samples subject IRIs, reports direct literal predicates, and reports outgoing object predicates with object type and label evidence. This helps identify good root targets, possible label predicates or label profiles, and noisy predicates to ignore.
 - `frink-indexing sample-targets`: config evaluation. Use this after drafting or editing a config. It runs the configured target definitions with a small per-target limit and writes representative sample documents. This is the main tool for judging whether the config produces compact, readable, semantically useful embedding text.
-- `frink-indexing textify`: final or bounded materialization. Use this to generate the actual JSON/text records for embedding. During config design, run it with a small `--limit`; for production, run it without a limit after the config has been reviewed.
+- `frink-indexing textify`: final or bounded materialization. During config design, run it only with a small `--limit` to inspect output shape. Do not run the full unbounded textification/materialization process unless the user explicitly approves it after reviewing the report.
 
 ## Workflow
 
@@ -43,6 +43,7 @@ The `frink-indexing` CLI is used to explore an HDT graph, evaluate candidate con
     - Only use `label_template`, `label_fields`, or `label_profiles` when no appropriate RDF label predicate exists, or when direct labels are too weak, too generic, or too verbose.
     - Do not create boilerplate label profiles that simply map `{name}` to a normal RDF name predicate; put that predicate in `label_predicates` instead.
     - Use `label_profiles` when helper classes need derived labels during graph walking without becoming textification targets.
+    - Preserve `rdf:type` in embedding text by default because it is usually useful signal. Ignore type only when it is clearly unhelpful or misleading, such as ontology meta-types like `owl:Class`.
     - Set conservative `predicate_limit` and `expansion_limit`; prefer concise embedding text for `all-MiniLM-L6-v2`.
     - Add `ignore_predicates` for noisy, huge, structural, or low-semantic-value predicates.
 7. Run `frink-indexing sample-targets` and, when useful, `frink-indexing textify` with small `--limit` values.
@@ -61,6 +62,32 @@ The `frink-indexing` CLI is used to explore an HDT graph, evaluate candidate con
     - Then write:
         * a wrap-up assessment that states which representations look strongest, which look weak or noisy, which targets should be kept or reconsidered, and the highest-value next iterations.
         * remaining uncertainties or recommended next iterations.
+10. Stop after creating the report. Ask the user whether to run full textification/materialization. Do not run unbounded `frink-indexing textify` automatically.
+
+## Asking for Guidance
+
+Prefer using sampler evidence to make routine decisions. Do not ask the user about facts the sampler can answer, such as type counts, available predicates, sample values, object type distributions, or whether a predicate is high-fanout.
+
+Stop and ask for advice when a decision depends on domain intent, user priorities, or product semantics rather than graph structure. When asking, present a short set of concrete options and ask the user to choose. Include a recommended option when one seems best from the evidence.
+
+Good reasons to ask:
+
+- whether a borderline type should be a root target, context-only helper, or skipped.
+- whether a high-volume class is worth embedding despite cost.
+- whether users are expected to search for experimental events, measurements, publications, locations, controlled vocabulary terms, or higher-level entities.
+- whether labels should prioritize identifiers, dates, human names, titles, descriptions, or compact summaries.
+- whether a domain-specific predicate is semantically important or noisy when sampler evidence is ambiguous.
+- whether long or numeric documents should be embedded directly or represented through parent entities.
+
+Good question shape:
+
+```text
+For `WeatherObservation` (149,774 instances), which direction should I take?
+
+1. Skip it as a root target and keep weather only as context. Recommended because the documents are numerous and numeric-heavy.
+2. Include it as a target with aggressive predicate limits. Useful if users need direct weather-record search.
+3. Defer it and document the uncertainty. Useful if we need domain input before deciding.
+```
 
 ## Quality Bar
 
@@ -72,3 +99,5 @@ The `frink-indexing` CLI is used to explore an HDT graph, evaluate candidate con
 - Every target in the config should be represented in the report by a rationale, an instance count, a short textual class summary, and at least one sample document.
 - The sample-document section should be self-contained: a reader should not need to scroll back to the target table to learn what each sampled class represents.
 - The report should end with an opinionated wrap-up based on the sampled documents, not just a neutral inventory.
+- The skill must not run full unbounded textification/materialization on its own. Bounded `--limit` runs are allowed for evaluation; full runs require explicit user approval after the report is written.
+- The algorithm should include each root document's RDF type by default. Excluding type requires a clear reason, such as avoiding unhelpful ontology/meta labels.
