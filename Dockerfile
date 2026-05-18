@@ -21,4 +21,4 @@ COPY . .
 EXPOSE 8000
 
 # gunicorn configuration picked up from gunicorn.conf.py
-CMD [".venv/bin/gunicorn",  "frink_embeddings_web.app:app"]
+CMD [".venv/bin/gunicorn",  "frink_embeddings_web.web.app:app"]
