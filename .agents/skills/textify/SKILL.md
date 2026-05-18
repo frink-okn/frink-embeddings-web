@@ -51,6 +51,7 @@ The `frink-indexing` CLI is used to explore an HDT graph, evaluate candidate con
 9. Write a report in the folder with the rest of the output titled `README.md`.
     - commands run.
     - included target types and type counts.
+    - how many documents would be created for all targeted types in total.
     - one summary line for every targeted class describing what the class appears to represent and how many instances exist.
     - skipped types and why.
     - For each targeted type, include:
