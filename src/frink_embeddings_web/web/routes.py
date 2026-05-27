@@ -18,11 +18,22 @@ web = Blueprint("web", __name__)
 def serialize_point(p: ScoredPoint) -> dict:
     payload = p.payload or {}
 
+    # `iri` is a list of IRIs that share this embedding. It may be truncated
+    # relative to `iri_count` (the total before the storage cap). The first
+    # IRI is the representative used for "find similar" and the external link.
+    iris = payload.get("iri") or []
+    if isinstance(iris, str):
+        iris = [iris]
+    primary = iris[0] if iris else ""
+
     return {
         "id": str(p.id),
         "score": float(p.score) if p.score is not None else None,
-        "payload": p.payload or {},
-        "encoded_uri": quote(payload.get("iri", ""), safe=""),
+        "payload": payload,
+        "iris": iris,
+        "iri_count": payload.get("iri_count", len(iris)),
+        "primary_uri": primary,
+        "encoded_uri": quote(primary, safe=""),
     }
 
 
