@@ -39,6 +39,8 @@ spec:
               value: {{ .Values.env.qdrantCollection }}
             - name: "QDRANT_HNSW_EF"
               value: {{ .Values.env.qdrantHnswEf | quote }}
+            - name: "QDRANT_TIMEOUT"
+              value: {{ .Values.env.qdrantTimeout | quote }}
             - name: "MODEL_NAME"
               value: {{ .Values.env.model }}
             - name: "SENTENCE_TRANSFORMERS_HOME"

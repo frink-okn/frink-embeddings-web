@@ -19,7 +19,9 @@ storage:
 
 env:
   qdrantLocation: "http://qdrant.frink:6333"
-  qdrantCollection: "OKN-Graph"
+  qdrantCollection: "OKN-Graph2"
+  qdrantHnswEf: 500
+  qdrantTimeout: 30
   model: "all-MiniLM-L6-v2"
   sentenceTransformersHome: "/mnt/models/"
   webPath: "/embeddings"
