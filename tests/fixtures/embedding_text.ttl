@@ -1,0 +1,14 @@
+@prefix ex: <http://example.com/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+ex:root
+    a ex:Thing ;
+    rdfs:label "Root label" ;
+    ex:hasRelatedThing ex:relatedThing ;
+    ex:has-score "42" ;
+    ex:blank [
+        ex:nestedName "Nested literal"
+    ] .
+
+ex:hasRelatedThing rdfs:label "related predicate" .
+ex:relatedThing rdfs:label "Related label" .

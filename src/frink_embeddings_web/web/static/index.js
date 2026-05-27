@@ -40,37 +40,6 @@ function updateQueryParams() {
   window.history.replaceState({}, '', url)
 }
 
-function showCopiedState(btn) {
-  const prev = btn.textContent;
-  btn.classList.add("copied");
-  btn.textContent = "Copied";
-  window.setTimeout(() => {
-    btn.classList.remove("copied");
-    btn.textContent = prev;
-  }, 900);
-}
-
-async function copyToClipboard(text, btn) {
-  if (!text) return;
-
-  try {
-    await navigator.clipboard.writeText(text);
-    if (btn) showCopiedState(btn);
-  } catch (err) {
-    // Fallback for older browsers / permissions
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.position = "fixed";
-    ta.style.top = "-9999px";
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    document.execCommand("copy");
-    document.body.removeChild(ta);
-    if (btn) showCopiedState(btn);
-  }
-}
-
 function submitQueryForm() {
   const form = document.querySelector(".query-form");
   if (!(form instanceof HTMLFormElement)) return;
@@ -155,6 +124,58 @@ function parseTemplateJson(tmpl) {
   }
 }
 
+function openUrisDialog(triggerEl) {
+  const cell = triggerEl.closest("td");
+  if (!(cell instanceof HTMLTableCellElement)) return;
+
+  const tmpl = cell.querySelector(".uris-template");
+  if (!(tmpl instanceof HTMLTemplateElement)) return;
+
+  let uris = [];
+  try {
+    uris = JSON.parse(tmpl.innerHTML || "[]");
+  } catch (e) {
+    uris = [];
+  }
+  if (!Array.isArray(uris) || uris.length === 0) return;
+
+  const total = parseInt(tmpl.getAttribute("data-total") || "", 10) || uris.length;
+
+  const list = document.getElementById("uris-dialog-list");
+  const title = document.getElementById("uris-dialog-title");
+  const dialog = document.getElementById("uris-dialog");
+  if (!list) return;
+
+  // Build entries with createElement/textContent so URIs are never injected as HTML.
+  list.replaceChildren();
+  uris.forEach((uri) => {
+    const entry = document.createElement("div");
+    entry.className = "uris-dialog-entry";
+
+    const link = document.createElement("a");
+    link.className = "uri-text mono";
+    link.href = uri;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.textContent = uri;
+
+    entry.append(link);
+    list.appendChild(entry);
+  });
+
+  if (title) {
+    if (total > uris.length) {
+      title.textContent = `URIs (showing ${uris.length} of ${total})`;
+    } else if (uris.length === 1) {
+      title.textContent = "URI";
+    } else {
+      title.textContent = `URIs (${uris.length})`;
+    }
+  }
+
+  if (dialog instanceof HTMLDialogElement) dialog.showModal();
+}
+
 function hideActionsMenu() {
   const menu = document.getElementById("actions-menu");
   if (!(menu instanceof HTMLElement)) return;
@@ -199,11 +220,10 @@ document.addEventListener("click", (e) => {
   const target = e.target;
   if (!(target instanceof HTMLElement)) return;
 
-  // Copy URI
-  const copyBtn = target.closest(".copy-btn");
-  if (copyBtn) {
-    const text = copyBtn.getAttribute("data-copy") || "";
-    copyToClipboard(text, copyBtn);
+  // Show all URIs for a result in an infobox
+  const detailBtn = target.closest(".uri-detail-btn");
+  if (detailBtn) {
+    openUrisDialog(detailBtn);
     return;
   }
 

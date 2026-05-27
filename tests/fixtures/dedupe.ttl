@@ -1,0 +1,13 @@
+@prefix ex: <http://example.com/> .
+
+ex:a
+    a ex:Thing ;
+    ex:value "same" .
+
+ex:b
+    a ex:Thing ;
+    ex:value "same" .
+
+ex:c
+    a ex:Thing ;
+    ex:value "different" .

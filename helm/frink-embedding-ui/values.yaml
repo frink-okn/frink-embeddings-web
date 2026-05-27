@@ -21,6 +21,8 @@ env:
   qdrantHost: "http://34.48.253.137"
   qdrantPort: "6333"
   qdrantCollection: "OKN-Graph2"
+  qdrantHnswEf: 500
+  qdrantTimeout: 30
   model: "all-MiniLM-L6-v2"
   sentenceTransformersHome: "/mnt/models/"
   webPath: "/embeddings"

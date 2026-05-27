@@ -1,0 +1,11 @@
+@prefix ex: <http://example.com/> .
+
+ex:root
+    ex:hasPart ex:objectA ;
+    ex:hasPart ex:objectB ;
+    ex:hasPart ex:objectC ;
+    ex:ignored "skip me" .
+
+ex:objectA ex:leaf ex:nested .
+ex:objectB ex:leaf ex:nested .
+ex:objectC ex:leaf ex:nested .

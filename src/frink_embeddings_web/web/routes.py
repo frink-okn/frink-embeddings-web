@@ -6,11 +6,10 @@ from pydantic import ValidationError
 from qdrant_client.http.exceptions import ResponseHandlingException
 from qdrant_client.models import ScoredPoint
 
-from frink_embeddings_web.context import get_ctx
-from frink_embeddings_web.errors import URINotFoundError
-from frink_embeddings_web.graphs import update_graph_catalog
-from frink_embeddings_web.model import Query
-from frink_embeddings_web.query import run_similarity_search
+from ..core.errors import URINotFoundError
+from ..core.models import Query
+from ..core.query import run_similarity_search
+from ._flask import get_ctx
 
 api = Blueprint("api", __name__)
 web = Blueprint("web", __name__)
@@ -19,11 +18,22 @@ web = Blueprint("web", __name__)
 def serialize_point(p: ScoredPoint) -> dict:
     payload = p.payload or {}
 
+    # `iri` is a list of IRIs that share this embedding. It may be truncated
+    # relative to `iri_count` (the total before the storage cap). The first
+    # IRI is the representative used for "find similar" and the external link.
+    iris = payload.get("iri") or []
+    if isinstance(iris, str):
+        iris = [iris]
+    primary = iris[0] if iris else ""
+
     return {
         "id": str(p.id),
         "score": float(p.score) if p.score is not None else None,
-        "payload": p.payload or {},
-        "encoded_uri": quote(payload.get("iri", ""), safe=""),
+        "payload": payload,
+        "iris": iris,
+        "iri_count": payload.get("iri_count", len(iris)),
+        "primary_uri": primary,
+        "encoded_uri": quote(primary, safe=""),
     }
 
 
@@ -53,13 +63,6 @@ def parse_error(e: Exception):
     return msg, status
 
 
-@api.post("/update-graphs")
-def update_graphs():
-    ctx = get_ctx()
-    update_graph_catalog(ctx)
-    return "", 200
-
-
 @api.post("/query")
 def post_query():
     data = request.get_json(silent=True) or {}
@@ -72,18 +75,15 @@ def post_query():
     ctx = get_ctx()
 
     try:
-        points = run_similarity_search(
+        result = run_similarity_search(
+            ctx,
             query_obj=q,
-            client=ctx.client,
-            model=ctx.model,
-            collection_name=ctx.collection,
-            hnsw_ef=ctx.qdrant_hnsw_ef,
         )
     except Exception as e:
         msg, status = parse_error(e)
         return jsonify({"error": msg}), status
 
-    return jsonify({"results": [serialize_point(p) for p in points]})
+    return jsonify({"results": [serialize_point(p) for p in result.points]})
 
 
 @web.get("/")
@@ -140,12 +140,9 @@ def post_query_view():
 
     ctx = get_ctx()
     try:
-        points = run_similarity_search(
+        result = run_similarity_search(
+            ctx,
             query_obj=q,
-            client=ctx.client,
-            model=ctx.model,
-            collection_name=ctx.collection,
-            hnsw_ef=ctx.qdrant_hnsw_ef,
         )
     except Exception as e:
         msg, status = parse_error(e)
@@ -155,7 +152,7 @@ def post_query_view():
             error=msg,
         ), status
 
-    results = [serialize_point(p) for p in points]
+    results = [serialize_point(p) for p in result.points]
     return render_template(
         "partials/results_table.html",
         results=results,

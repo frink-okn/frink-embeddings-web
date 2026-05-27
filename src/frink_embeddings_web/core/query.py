@@ -1,36 +1,45 @@
+import time
+
 import numpy as np
-from qdrant_client import QdrantClient
+from loguru import logger
 from qdrant_client.models import (
     FieldCondition,
     Filter,
     MatchAny,
     MatchValue,
-    ScoredPoint,
+    QuantizationSearchParams,
     SearchParams,
 )
 from sentence_transformers import SentenceTransformer
 
-from frink_embeddings_web.errors import URINotFoundError
-from frink_embeddings_web.model import Feature, NodeFeature, Query, TextFeature
+from ..config import AppContext
+from .errors import URINotFoundError
+from .models import (
+    Feature,
+    NodeFeature,
+    Query,
+    TextFeature,
+    TimedQueryResponse,
+)
 
 
 def embed_text(text: str, model: SentenceTransformer) -> np.ndarray:
     """Encode text into the same embedding space as the stored vectors."""
-    return model.encode(text, normalize_embeddings=False).astype(np.float32)
+    return model.encode(
+        text, normalize_embeddings=False, convert_to_numpy=True
+    ).astype(np.float32)
 
 
 def get_embedding(
+    ctx: AppContext,
     feature: Feature,
-    client: QdrantClient,
-    model: SentenceTransformer,
-    collection_name: str,
 ) -> np.ndarray:
     match feature:
         case TextFeature(type="text"):
-            return embed_text(feature.value, model)
+            return embed_text(feature.value, ctx.model)
         case NodeFeature(type="node"):
-            points, _ = client.scroll(
-                collection_name=collection_name,
+            points, _ = ctx.client.scroll(
+                collection_name=ctx.settings.qdrant_collection,
                 scroll_filter=Filter(
                     must=[
                         FieldCondition(
@@ -50,13 +59,12 @@ def get_embedding(
 
 
 def run_similarity_search(
+    ctx: AppContext,
     query_obj: Query,
-    client: QdrantClient,
-    model: SentenceTransformer,
-    collection_name: str,
-    hnsw_ef: int | None,
-) -> list[ScoredPoint]:
-    vector = get_embedding(query_obj.feature, client, model, collection_name)
+    hnsw_ef: int | None = None,
+    exact: bool = False,
+) -> TimedQueryResponse:
+    vector = get_embedding(ctx, query_obj.feature)
 
     graph_filter: Filter | None = None
 
@@ -78,14 +86,34 @@ def run_similarity_search(
             ]
         )
 
-    search_params = SearchParams(hnsw_ef=hnsw_ef)
+    search_params = SearchParams(
+        hnsw_ef=ctx.settings.qdrant_hnsw_ef if hnsw_ef is None else hnsw_ef,
+        exact=exact,
+        quantization=QuantizationSearchParams(
+            ignore=False,
+            rescore=True,
+            oversampling=3.0,
+        ),
+    )
 
-    return client.search(
-        collection_name=collection_name,
-        query_vector=vector.tolist(),
+    start_time = time.perf_counter()
+    resp = ctx.client.query_points(
+        query=vector.tolist(),
+        collection_name=ctx.settings.qdrant_collection,
         query_filter=graph_filter,
         with_payload=True,
         limit=query_obj.limit,
         offset=query_obj.offset,
         search_params=search_params,
+        timeout=ctx.settings.qdrant_timeout,
+    )
+    end_time = time.perf_counter()
+
+    query_time = end_time - start_time
+
+    logger.debug(f"{query_time:.3f}s for query: {query_obj}")
+
+    return TimedQueryResponse(
+        points=resp.points,
+        time=end_time - start_time,
     )

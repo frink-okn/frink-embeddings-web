@@ -36,7 +36,6 @@
     <table class="results-table">
       <thead>
         <tr>
-          <th>URI</th>
           <th>Label</th>
           <th>Graph</th>
           <th>Match Score</th>
@@ -46,15 +45,18 @@
       <tbody>
       {% for r in results %}
         <tr>
-          <td>
-            {% if r.payload.iri %}
-              <div class="uri-cell">
-                <a class="mono" href="{{ r.payload.iri }}" target="_blank" rel="noreferrer" title="{{ r.payload.iri }}">open</a>
-                <button type="button" class="copy-btn" data-copy="{{ r.payload.iri }}" aria-label="Copy node URI">Copy</button>
+          <td class="label-cell">
+            {% if r.iris %}
+              <div class="uri-line">
+                <a class="uri-text mono" href="{{ r.primary_uri }}" target="_blank" rel="noreferrer" title="{{ r.primary_uri }}">{{ r.primary_uri }}</a>
+                {% if r.iris|length > 1 %}
+                  <button type="button" class="uri-more uri-detail-btn">+{{ r.iris|length - 1 }} more</button>
+                {% endif %}
+                <template class="uris-template" data-total="{{ r.iri_count }}">{{ r.iris | tojson }}</template>
               </div>
             {% endif %}
+            <div class="label-main" title="{{ r.payload.label or '' }}">{{ r.payload.label or "" }}</div>
           </td>
-          <td class="label-main" title="{{ r.payload.label or '' }}">{{ r.payload.label or "" }}</td>
           <td title="{{ r.payload.graph or '' }}">{{ r.payload.graph or "" }}</td>
           <td>
             {% if r.score is not none %}
@@ -69,7 +71,7 @@
               class="row-actions-trigger-btn"
               title="Actions"
               aria-label="Actions"
-              data-uri="{{ r.payload.iri }}"
+              data-uri="{{ r.primary_uri }}"
               data-graph="{{ r.payload.graph or '' }}"
               data-external="https://frink.apps.renci.org/term/{{ r.encoded_uri }}"
             >

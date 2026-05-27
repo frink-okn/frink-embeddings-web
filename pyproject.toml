@@ -9,17 +9,30 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "cachetools>=6.2.4",
     "flask>=3.1.2",
     "gunicorn>=23.0.0",
+    "jinja2>=3.1.6",
+    "loguru>=0.7.3",
+    "numpy>=2.3.4",
+    "pandas>=3.0.1",
+    "pyarrow>=23.0.1",
     "pydantic>=2.11.9",
-    "qdrant-client>=1.15.1",
+    "pydantic-settings>=2.12.0",
+    "pyparsing<3.3",
+    "pytest>=9.0.2",
+    "qdrant-client>=1.17.0",
+    "rdflib>=7.5.0",
+    "rdflib-hdt>=3.2",
     "sentence-transformers>=5.1.1",
     "torch>=2.7.0",
     "torchvision==0.23.0",
+    "typer>=0.21.1",
 ]
 
 [project.scripts]
 frink-embeddings-web = "frink_embeddings_web:main"
+frink-indexing = "frink_embeddings_web.indexing.cli:app"
 
 [build-system]
 requires = ["hatchling"]
@@ -45,6 +58,9 @@ packages = ["src/frink_embeddings_web"]
 dev = [
     "ruff>=0.14.1",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.ruff]
 target-version = "py312"

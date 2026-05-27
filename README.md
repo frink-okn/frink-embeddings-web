@@ -7,11 +7,10 @@ Requirements
 - Qdrant running and accessible (default http://127.0.0.1:5554)
 
 Configuration (env vars)
-- QDRANT_HOST: default http://127.0.0.1
-- QDRANT_PORT: default 5554
+- QDRANT_LOCATION: default http://127.0.0.1:6663
 - QDRANT_COLLECTION: default OKN-Graph
 - QDRANT_HNSW_EF: default 500
-- SENTENCE_MODEL_NAME: default all-MiniLM-L6-v2
+- MODEL_NAME: default all-MiniLM-L6-v2
 - HOST: HTTP server bind host (default 0.0.0.0)
 - PORT: HTTP server bind port (default 8000)
 - NUM_WORKERS: Number of gunicorn workers to use (default 4)

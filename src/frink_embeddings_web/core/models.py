@@ -1,6 +1,7 @@
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, model_validator
+from qdrant_client.http.models import QueryResponse
 
 
 class TextFeature(BaseModel):
@@ -29,5 +30,11 @@ class Query(BaseModel):
     @model_validator(mode="after")
     def validate_graph_modes(self):
         if self.include_graphs and self.exclude_graphs:
-            raise ValueError("Only one of include_graphs or exclude_graphs may be set")
+            raise ValueError(
+                "Only one of include_graphs or exclude_graphs may be set"
+            )
         return self
+
+
+class TimedQueryResponse(QueryResponse):
+    time: float

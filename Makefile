@@ -2,11 +2,11 @@ DOCKER_NAME ?= frink-web
 
 .PHONY: dev
 dev:
-	uv run flask --app frink_embeddings_web.app run --debug
+	uv run flask --app frink_embeddings_web.web.app run --debug
 
 .PHONY: dev-gunicorn
 dev-gunicorn:
-	uv run gunicorn frink_embeddings_web.app:app
+	uv run gunicorn frink_embeddings_web.web.app:app
 
 .PHONY: docker-build
 docker-build:
@@ -28,3 +28,7 @@ lint:
 format:
 	-uv run ruff check --fix
 	-uv run ruff format
+
+.PHONY: test
+test:
+	uv run pytest

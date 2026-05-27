@@ -1,0 +1,34 @@
+@prefix dc: <http://purl.org/dc/terms/> .
+@prefix ex: <http://example.com/> .
+@prefix schema: <http://schema.org/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+ex:Treatment
+    rdfs:label "Treatment" .
+
+ex:Project
+    rdfs:label "Project" .
+
+ex:treatmentA
+    a ex:Treatment ;
+    schema:name "Treatment A" ;
+    dc:description "First treatment" ;
+    ex:score "10" ;
+    ex:linksTo ex:projectA .
+
+ex:treatmentB
+    a ex:Treatment ;
+    schema:name "Treatment B" ;
+    dc:description "Second treatment" ;
+    ex:score "20" ;
+    ex:linksTo ex:projectB .
+
+ex:projectA
+    a ex:Project ;
+    schema:name "Project A" ;
+    dc:description "A project" .
+
+ex:projectB
+    a ex:Project ;
+    schema:name "Project B" ;
+    dc:description "Another project" .
