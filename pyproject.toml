@@ -39,6 +39,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.uv.sources]
+# Switch back to PyPI once a new release of rdflib-hdt lands in pypi that
+# contains the fixes from https://github.com/RDFLib/rdflib-hdt/pull/39/
+rdflib-hdt = { git = "https://github.com/RDFLib/rdflib-hdt.git", rev = "5b0a028fbd71e95befeadcf2fecaddb9542578ed" }
 torch = [
   { index = "pytorch-cpu" },
 ]
