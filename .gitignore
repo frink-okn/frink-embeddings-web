@@ -9,4 +9,5 @@ wheels/
 # Virtual environments
 .venv
 
-graphs.txt
+# Configuration file
+.env
