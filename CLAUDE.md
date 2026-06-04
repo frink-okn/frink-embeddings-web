@@ -2,9 +2,9 @@
 
 Python app to **produce** and **search** vector embeddings of RDF knowledge graphs. The
 indexing pipeline turns graph nodes into text and embeds them; the search interfaces embed a
-query (text or an existing node) with the same sentence-transformers model and match it
-against a Qdrant collection via similarity search, with optional filtering by source graph.
-(Embedding upload to Qdrant lives on a separate branch.)
+query (text or an existing node) with the same embedding model (fastembed / ONNX, via
+`core/embedding.py`) and match it against a Qdrant collection via similarity search, with
+optional filtering by source graph. (Embedding upload to Qdrant lives on a separate branch.)
 
 ## Architecture
 
@@ -42,7 +42,7 @@ Supporting modules:
 Env vars (defaults in `default.env`, overridable via `.env`):
 
 - `QDRANT_LOCATION`, `QDRANT_COLLECTION` (`OKN-Graph`), `QDRANT_HNSW_EF`, `QDRANT_TIMEOUT`
-- `MODEL_NAME` (`all-MiniLM-L6-v2`)
+- `MODEL_NAME` (`sentence-transformers/all-MiniLM-L6-v2`)
 - Web server: `HOST`, `PORT`, `NUM_WORKERS`, `DEBUG`, `SCRIPT_NAME` (subdir hosting, gunicorn)
 
 ## Common commands

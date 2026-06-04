@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
 from qdrant_client import QdrantClient
-from sentence_transformers import SentenceTransformer
 
+from ..core.embedding import Embedder, make_embedder
 from ..core.graphs import get_graphs
 from .settings import AppSettings, load_settings
 
@@ -10,7 +10,7 @@ from .settings import AppSettings, load_settings
 @dataclass
 class AppContext:
     client: QdrantClient
-    model: SentenceTransformer
+    embedder: Embedder
     settings: AppSettings
 
     @staticmethod
@@ -23,11 +23,11 @@ class AppContext:
             location=settings.qdrant_location,
             timeout=settings.qdrant_timeout,
         )
-        model = SentenceTransformer(settings.model_name)
+        embedder = make_embedder(settings)
 
         return AppContext(
             client=client,
-            model=model,
+            embedder=embedder,
             settings=settings,
         )
 

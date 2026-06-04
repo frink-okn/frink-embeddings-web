@@ -97,7 +97,7 @@ class _FakeCtx:
     def __init__(self, client):
         self.client = client
         self.settings = _FakeSettings()
-        self.model = None
+        self.embedder = None
 
 
 def _point(score):

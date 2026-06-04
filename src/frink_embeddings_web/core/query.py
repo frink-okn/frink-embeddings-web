@@ -10,7 +10,6 @@ from qdrant_client.models import (
     QuantizationSearchParams,
     SearchParams,
 )
-from sentence_transformers import SentenceTransformer
 
 from ..config import AppContext
 from .errors import URINotFoundError
@@ -23,20 +22,13 @@ from .models import (
 )
 
 
-def embed_text(text: str, model: SentenceTransformer) -> np.ndarray:
-    """Encode text into the same embedding space as the stored vectors."""
-    return model.encode(
-        text, normalize_embeddings=False, convert_to_numpy=True
-    ).astype(np.float32)
-
-
 def get_embedding(
     ctx: AppContext,
     feature: Feature,
 ) -> np.ndarray:
     match feature:
         case TextFeature(type="text"):
-            return embed_text(feature.value, ctx.model)
+            return ctx.embedder.embed(feature.value)
         case NodeFeature(type="node"):
             points, _ = ctx.client.scroll(
                 collection_name=ctx.settings.qdrant_collection,

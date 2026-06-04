@@ -23,8 +23,8 @@ env:
   qdrantCollection: "OKN-Graph2"
   qdrantHnswEf: 500
   qdrantTimeout: 30
-  model: "all-MiniLM-L6-v2"
-  sentenceTransformersHome: "/mnt/models/"
+  model: "sentence-transformers/all-MiniLM-L6-v2"
+  fastembedCachePath: "/mnt/models/"
   webPath: "/embeddings"
   qdrantHnswEf: 500
 
