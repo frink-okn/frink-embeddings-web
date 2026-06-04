@@ -43,8 +43,8 @@ spec:
               value: {{ .Values.env.qdrantTimeout | quote }}
             - name: "MODEL_NAME"
               value: {{ .Values.env.model }}
-            - name: "SENTENCE_TRANSFORMERS_HOME"
-              value: {{ .Values.env.sentenceTransformersHome }}
+            - name: "FASTEMBED_CACHE_PATH"
+              value: {{ .Values.env.fastembedCachePath }}
             - name: SCRIPT_NAME
               value: {{ .Values.env.webPath }}
           command:
@@ -68,7 +68,7 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
-            - mountPath: {{ .Values.env.sentenceTransformersHome }}
+            - mountPath: {{ .Values.env.fastembedCachePath }}
               name: models-pvc
       {{- with .Values.nodeSelector }}
       nodeSelector:
