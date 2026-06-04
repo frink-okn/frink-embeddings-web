@@ -31,7 +31,6 @@ dependencies = [
 ]
 
 [project.scripts]
-frink-embeddings-web = "frink_embeddings_web:main"
 frink-indexing = "frink_embeddings_web.indexing.cli:app"
 
 [build-system]
