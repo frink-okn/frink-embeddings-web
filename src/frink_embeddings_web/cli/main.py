@@ -1,46 +1,217 @@
 import json
+from enum import Enum
+from typing import Annotated, NoReturn
 
+import httpx
 import typer
+from pydantic import ValidationError
+from rich.console import Console
+from rich.table import Table
 
 from ..config import AppContext
-from ..core.models import Query, TextFeature
+from ..core.errors import unwrap_qdrant_error
+from ..core.graphs import get_graph_facets
+from ..core.models import build_query
 from ..core.query import run_similarity_search
+from ..core.results import ResultRow, summarize_point
+
+app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 
+class FeatureType(str, Enum):
+    text = "text"
+    node = "node"
+
+
+class GraphSort(str, Enum):
+    NAME = "name"
+    COUNT = "count"
+
+
+def _fail(message: str) -> NoReturn:
+    """Print an error to stderr and exit with a nonzero status."""
+    typer.echo(message, err=True)
+    raise typer.Exit(code=1)
+
+
+def _error_message(e: Exception) -> str:
+    inner = unwrap_qdrant_error(e)
+    if isinstance(inner, httpx.ConnectError):
+        return "Could not connect to Qdrant server"
+    return str(inner)
+
+
+def _print_results_table(rows: list[ResultRow], show_repr: bool) -> None:
+    if not rows:
+        typer.echo("No results.")
+        return
+
+    table = Table()
+    table.add_column("Score", justify="right")
+    table.add_column("Label")
+    table.add_column("Graph")
+    table.add_column("IRI", overflow="fold")
+    if show_repr:
+        table.add_column("Embedding text", overflow="fold")
+
+    for row in rows:
+        score = f"{row.score:.4f}" if row.score is not None else ""
+        iri = row.primary_uri
+        if row.iri_count > 1:
+            iri += f"  (+{row.iri_count - 1} more)"
+        cells = [score, row.label, row.graph, iri]
+        if show_repr:
+            cells.append(row.repr)
+        table.add_row(*cells)
+
+    Console().print(table)
+
+
+def _print_results_json(rows: list[ResultRow], show_repr: bool) -> None:
+    out = []
+    for row in rows:
+        item = {
+            "score": row.score,
+            "label": row.label,
+            "graph": row.graph,
+            "primary_uri": row.primary_uri,
+            "iris": row.iris,
+            "iri_count": row.iri_count,
+        }
+        if show_repr:
+            item["repr"] = row.repr
+        out.append(item)
+
+    typer.echo(json.dumps(out))
+
+
+@app.command()
 def search(
-    term: str,
-    graph: str | None = None,
-    exact: bool = False,
-    limit: int = 10,
+    term: Annotated[
+        str,
+        typer.Argument(help="Query text, or a node IRI when --type node."),
+    ],
+    feature_type: Annotated[
+        FeatureType,
+        typer.Option(
+            "--type",
+            "-t",
+            help="Search by free text or by an existing node's IRI.",
+        ),
+    ] = FeatureType.text,
+    graph: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--graph",
+            "-g",
+            help="Restrict search to these graphs (repeatable).",
+        ),
+    ] = None,
+    exclude_graph: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--exclude-graph",
+            "-x",
+            help="Exclude these graphs (repeatable).",
+        ),
+    ] = None,
+    limit: Annotated[
+        int,
+        typer.Option("--limit", "-l", min=1, help="Maximum results."),
+    ] = 10,
+    offset: Annotated[
+        int,
+        typer.Option("--offset", min=0, help="Results offset (pagination)."),
+    ] = 0,
+    exact: Annotated[
+        bool,
+        typer.Option("--exact", help="Exact (kNN) search instead of ANN."),
+    ] = False,
+    show_repr: Annotated[
+        bool,
+        typer.Option(
+            "--show-repr",
+            help="Include each result's embedding text.",
+        ),
+    ] = False,
+    as_json: Annotated[
+        bool,
+        typer.Option("--json", help="Output JSON instead of a table."),
+    ] = False,
 ):
+    """Search the embeddings by text or by an existing node's IRI."""
+    try:
+        query = build_query(
+            feature_type=feature_type.value,
+            value=term,
+            include_graphs=graph,
+            exclude_graphs=exclude_graph,
+            limit=limit,
+            offset=offset,
+        )
+    except ValidationError as e:
+        msg = "; ".join(err.get("msg", "") for err in e.errors())
+        raise typer.BadParameter(msg) from e
+
     ctx = AppContext.from_env()
 
-    query = Query(
-        include_graphs=[graph] if graph else None,
-        feature=TextFeature(type="text", value=term),
-        limit=limit,
-    )
+    try:
+        response = run_similarity_search(ctx, query_obj=query, exact=exact)
+    except Exception as e:
+        _fail(_error_message(e))
 
-    results = run_similarity_search(
-        ctx,
-        query_obj=query,
-        exact=exact,
-    )
+    rows = [summarize_point(p) for p in response.points]
 
-    out = []
+    if as_json:
+        _print_results_json(rows, show_repr)
+    else:
+        _print_results_table(rows, show_repr)
 
-    for result in results.points:
-        if not result.payload:
-            continue
-        out.append(
-            {
-                "score": result.score,
-                "payload": result.payload,
-            }
-        )
 
-    print(json.dumps(out))
+@app.command("list-graphs")
+def list_graphs(
+    sort: Annotated[
+        GraphSort,
+        typer.Option(
+            "--sort",
+            help="Sort by graph name (asc) or point count (desc).",
+        ),
+    ] = GraphSort.NAME,
+    as_json: Annotated[
+        bool,
+        typer.Option("--json", help="Output JSON instead of a table."),
+    ] = False,
+):
+    """List the graphs in the collection and their point counts."""
+    ctx = AppContext.from_env()
+
+    try:
+        facets = get_graph_facets(ctx)
+    except Exception as e:
+        _fail(_error_message(e))
+
+    if sort == GraphSort.COUNT:
+        facets = sorted(facets, key=lambda f: f.count, reverse=True)
+    else:
+        facets = sorted(facets, key=lambda f: f.graph)
+
+    if as_json:
+        out = [{"graph": f.graph, "count": f.count} for f in facets]
+        typer.echo(json.dumps(out))
+        return
+
+    if not facets:
+        typer.echo("No graphs.")
+        return
+
+    table = Table()
+    table.add_column("Graph")
+    table.add_column("Count", justify="right")
+    for f in facets:
+        table.add_row(f.graph, f"{f.count:,}")
+
+    Console().print(table)
 
 
 if __name__ == "__main__":
-    typer.run(search)
+    app()

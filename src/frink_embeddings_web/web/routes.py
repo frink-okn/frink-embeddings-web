@@ -3,12 +3,12 @@ from urllib.parse import quote
 import httpx
 from flask import Blueprint, jsonify, render_template, request
 from pydantic import ValidationError
-from qdrant_client.http.exceptions import ResponseHandlingException
 from qdrant_client.models import ScoredPoint
 
-from ..core.errors import URINotFoundError
-from ..core.models import Query
+from ..core.errors import URINotFoundError, unwrap_qdrant_error
+from ..core.models import Query, build_query
 from ..core.query import run_similarity_search
+from ..core.results import summarize_point
 from ._flask import get_ctx
 
 api = Blueprint("api", __name__)
@@ -16,35 +16,17 @@ web = Blueprint("web", __name__)
 
 
 def serialize_point(p: ScoredPoint) -> dict:
-    payload = p.payload or {}
-
-    # `iri` is a list of IRIs that share this embedding. It may be truncated
-    # relative to `iri_count` (the total before the storage cap). The first
-    # IRI is the representative used for "find similar" and the external link.
-    iris = payload.get("iri") or []
-    if isinstance(iris, str):
-        iris = [iris]
-    primary = iris[0] if iris else ""
+    row = summarize_point(p)
 
     return {
-        "id": str(p.id),
-        "score": float(p.score) if p.score is not None else None,
-        "payload": payload,
-        "iris": iris,
-        "iri_count": payload.get("iri_count", len(iris)),
-        "primary_uri": primary,
-        "encoded_uri": quote(primary, safe=""),
+        "id": row.id,
+        "score": row.score,
+        "payload": p.payload or {},
+        "iris": row.iris,
+        "iri_count": row.iri_count,
+        "primary_uri": row.primary_uri,
+        "encoded_uri": quote(row.primary_uri, safe=""),
     }
-
-
-def unwrap_qdrant_error(e: Exception) -> Exception:
-    is_qdrant_wrapped = (
-        isinstance(e, ResponseHandlingException)
-        and e.args
-        and isinstance(e.args[0], Exception)
-    )
-
-    return e.args[0] if is_qdrant_wrapped else e
 
 
 def parse_error(e: Exception):
@@ -111,26 +93,15 @@ def index():
 def post_query_view():
     form = request.form
 
-    include_graphs = form.getlist("include_graphs")
-    exclude_graphs = form.getlist("exclude_graphs")
-
-    data = {
-        "feature": {
-            "type": form.get("feat_type"),
-            "value": form.get("feat_value"),
-        },
-        "limit": form.get("limit", 10),
-        "offset": form.get("offset", 0),
-    }
-
-    if include_graphs:
-        data["include_graphs"] = include_graphs
-
-    if exclude_graphs:
-        data["exclude_graphs"] = exclude_graphs
-
     try:
-        q = Query.model_validate(data)
+        q = build_query(
+            feature_type=form.get("feat_type", ""),
+            value=form.get("feat_value", ""),
+            include_graphs=form.getlist("include_graphs"),
+            exclude_graphs=form.getlist("exclude_graphs"),
+            limit=form.get("limit", 10),
+            offset=form.get("offset", 0),
+        )
     except ValidationError:
         return render_template(
             "partials/results_table.html",

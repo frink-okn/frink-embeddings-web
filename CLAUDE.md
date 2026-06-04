@@ -18,8 +18,9 @@ One shared search core powers three interfaces:
   serialized scored points.
 - **HTMX web UI** — `web/routes.py`: `GET /` renders the form; `POST /query-view` returns an
   HTML results partial. Templates in `web/templates/`, assets in `web/static/`.
-- **CLI** — `cli/main.py`: a `search` command. Currently minimal and not fully wired as a
-  Typer app (see Known gaps).
+- **CLI** — `cli/main.py`: the `frink-search` Typer app. `search` (text or node/IRI query,
+  `--graph`/`--exclude-graph`, `--limit`/`--offset`, `--exact`, `--show-repr`, `--json`) and
+  `list-graphs` (point counts, `--sort name|count`).
 
 Supporting modules:
 
@@ -54,6 +55,7 @@ Use `uv` for everything.
 - `make format` — `ruff check --fix` + `ruff format`
 - `make docker-build` / `make docker-run`
 - `uv run frink-indexing --help` — indexing/materialization CLI
+- `uv run frink-search --help` — search CLI (`search`, `list-graphs`)
 
 ## Conventions
 
@@ -61,4 +63,6 @@ Use `uv` for everything.
   `make format` before committing.
 - Do not add `from __future__ import annotations`; native 3.12 typing is fine.
 - All three interfaces should go through `run_similarity_search` — add features to the core
-  and the `Query` model rather than duplicating search logic per interface.
+  and the `Query` model rather than duplicating search logic per interface. Shared helpers
+  `build_query` (`core/models.py`) and `summarize_point` (`core/results.py`) keep request
+  assembly and result formatting in one place.

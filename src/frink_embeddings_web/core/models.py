@@ -38,3 +38,32 @@ class Query(BaseModel):
 
 class TimedQueryResponse(QueryResponse):
     time: float
+
+
+def build_query(
+    feature_type: str,
+    value: str,
+    include_graphs: list[str] | None = None,
+    exclude_graphs: list[str] | None = None,
+    limit: int | str = 10,
+    offset: int | str = 0,
+) -> Query:
+    """Assemble (and validate) a Query from individual parts.
+
+    Shared by the CLI and the HTMX form route so the discriminated feature
+    union and the include/exclude mutual-exclusion check are applied
+    identically. Raises pydantic ``ValidationError`` on bad input.
+    """
+    data: dict = {
+        "feature": {"type": feature_type, "value": value},
+        "limit": limit,
+        "offset": offset,
+    }
+
+    if include_graphs:
+        data["include_graphs"] = include_graphs
+
+    if exclude_graphs:
+        data["exclude_graphs"] = exclude_graphs
+
+    return Query.model_validate(data)

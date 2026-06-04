@@ -32,6 +32,7 @@ dependencies = [
 
 [project.scripts]
 frink-indexing = "frink_embeddings_web.indexing.cli:app"
+frink-search = "frink_embeddings_web.cli.main:app"
 
 [build-system]
 requires = ["hatchling"]
