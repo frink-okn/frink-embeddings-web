@@ -42,6 +42,10 @@ uv run frink-search search https://example.org/node/123 --type node
 uv run frink-search search "diabetes" -g GraphA -g GraphB --json
 uv run frink-search search "diabetes" -x GraphA
 
+# Survey: top matches *per graph* across every graph (or a -g/-x subset)
+uv run frink-search survey "diabetes" --limit 3
+uv run frink-search survey "diabetes" -g GraphA -g GraphB
+
 # List the graphs in the collection and their point counts
 uv run frink-search list-graphs --sort count
 ```

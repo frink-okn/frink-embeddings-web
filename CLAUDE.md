@@ -19,8 +19,9 @@ One shared search core powers three interfaces:
 - **HTMX web UI** — `web/routes.py`: `GET /` renders the form; `POST /query-view` returns an
   HTML results partial. Templates in `web/templates/`, assets in `web/static/`.
 - **CLI** — `cli/main.py`: the `frink-search` Typer app. `search` (text or node/IRI query,
-  `--graph`/`--exclude-graph`, `--limit`/`--offset`, `--exact`, `--show-repr`, `--json`) and
-  `list-graphs` (point counts, `--sort name|count`).
+  `--graph`/`--exclude-graph`, `--limit`/`--offset`, `--exact`, `--show-repr`, `--json`),
+  `survey` (per-graph top-N across every graph or a `-g`/`-x` subset — `core/explore.py`,
+  one Qdrant batch request) and `list-graphs` (point counts, `--sort name|count`).
 
 Supporting modules:
 
@@ -64,5 +65,7 @@ Use `uv` for everything.
 - Do not add `from __future__ import annotations`; native 3.12 typing is fine.
 - All three interfaces should go through `run_similarity_search` — add features to the core
   and the `Query` model rather than duplicating search logic per interface. Shared helpers
-  `build_query` (`core/models.py`) and `summarize_point` (`core/results.py`) keep request
-  assembly and result formatting in one place.
+  `build_feature`/`build_query` (`core/models.py`), `build_graph_filter`/`make_search_params`
+  (`core/query.py`) and `summarize_point` (`core/results.py`) keep request assembly and result
+  formatting in one place; `core/explore.py::run_survey` returns render-agnostic data for a
+  future web caller.

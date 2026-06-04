@@ -10,8 +10,9 @@ from rich.table import Table
 
 from ..config import AppContext
 from ..core.errors import unwrap_qdrant_error
+from ..core.explore import GraphSurveyResult, run_survey
 from ..core.graphs import get_graph_facets
-from ..core.models import build_query
+from ..core.models import build_feature, build_query
 from ..core.query import run_similarity_search
 from ..core.results import ResultRow, summarize_point
 
@@ -67,22 +68,22 @@ def _print_results_table(rows: list[ResultRow], show_repr: bool) -> None:
     Console().print(table)
 
 
-def _print_results_json(rows: list[ResultRow], show_repr: bool) -> None:
-    out = []
-    for row in rows:
-        item = {
-            "score": row.score,
-            "label": row.label,
-            "graph": row.graph,
-            "primary_uri": row.primary_uri,
-            "iris": row.iris,
-            "iri_count": row.iri_count,
-        }
-        if show_repr:
-            item["repr"] = row.repr
-        out.append(item)
+def _row_to_dict(row: ResultRow, show_repr: bool) -> dict:
+    item = {
+        "score": row.score,
+        "label": row.label,
+        "graph": row.graph,
+        "primary_uri": row.primary_uri,
+        "iris": row.iris,
+        "iri_count": row.iri_count,
+    }
+    if show_repr:
+        item["repr"] = row.repr
+    return item
 
-    typer.echo(json.dumps(out))
+
+def _print_results_json(rows: list[ResultRow], show_repr: bool) -> None:
+    typer.echo(json.dumps([_row_to_dict(row, show_repr) for row in rows]))
 
 
 @app.command()
@@ -166,6 +167,145 @@ def search(
         _print_results_json(rows, show_repr)
     else:
         _print_results_table(rows, show_repr)
+
+
+def _print_survey_table(
+    results: list[GraphSurveyResult], show_repr: bool
+) -> None:
+    if not results:
+        typer.echo("No graphs to search.")
+        return
+
+    console = Console()
+    for r in results:
+        rows = [summarize_point(p) for p in r.points]
+        best = (
+            f"{rows[0].score:.4f}"
+            if rows and rows[0].score is not None
+            else "—"
+        )
+        console.print(
+            f"[bold]{r.graph}[/bold]  ({len(rows)} hits, best {best})"
+        )
+
+        if not rows:
+            console.print("  no results\n")
+            continue
+
+        table = Table()
+        table.add_column("Score", justify="right")
+        table.add_column("Label")
+        table.add_column("IRI", overflow="fold")
+        if show_repr:
+            table.add_column("Embedding text", overflow="fold")
+
+        for row in rows:
+            score = f"{row.score:.4f}" if row.score is not None else ""
+            iri = row.primary_uri
+            if row.iri_count > 1:
+                iri += f"  (+{row.iri_count - 1} more)"
+            cells = [score, row.label, iri]
+            if show_repr:
+                cells.append(row.repr)
+            table.add_row(*cells)
+
+        console.print(table)
+        console.print()
+
+
+def _print_survey_json(
+    results: list[GraphSurveyResult], show_repr: bool
+) -> None:
+    out = [
+        {
+            "graph": r.graph,
+            "results": [
+                _row_to_dict(summarize_point(p), show_repr) for p in r.points
+            ],
+        }
+        for r in results
+    ]
+    typer.echo(json.dumps(out))
+
+
+@app.command()
+def survey(
+    term: Annotated[
+        str,
+        typer.Argument(help="Query text, or a node IRI when --type node."),
+    ],
+    feature_type: Annotated[
+        FeatureType,
+        typer.Option(
+            "--type",
+            "-t",
+            help="Search by free text or by an existing node's IRI.",
+        ),
+    ] = FeatureType.text,
+    graph: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--graph",
+            "-g",
+            help="Limit the survey to these graphs (repeatable).",
+        ),
+    ] = None,
+    exclude_graph: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--exclude-graph",
+            "-x",
+            help="Survey all graphs except these (repeatable).",
+        ),
+    ] = None,
+    limit: Annotated[
+        int,
+        typer.Option("--limit", "-l", min=1, help="Top results per graph."),
+    ] = 5,
+    exact: Annotated[
+        bool,
+        typer.Option("--exact", help="Exact (kNN) search instead of ANN."),
+    ] = False,
+    show_repr: Annotated[
+        bool,
+        typer.Option(
+            "--show-repr",
+            help="Include each result's embedding text.",
+        ),
+    ] = False,
+    as_json: Annotated[
+        bool,
+        typer.Option("--json", help="Output JSON instead of a table."),
+    ] = False,
+):
+    """Search every graph (or a -g/-x subset) for the top matches per graph."""
+    if graph and exclude_graph:
+        raise typer.BadParameter("Use only one of --graph / --exclude-graph.")
+
+    try:
+        feature = build_feature(feature_type.value, term)
+    except ValidationError as e:
+        msg = "; ".join(err.get("msg", "") for err in e.errors())
+        raise typer.BadParameter(msg) from e
+
+    ctx = AppContext.from_env()
+
+    try:
+        results = run_survey(
+            ctx,
+            feature,
+            include_graphs=graph,
+            exclude_graphs=exclude_graph,
+            limit=limit,
+            exact=exact,
+        )
+    except Exception as e:
+        _fail(_error_message(e))
+
+    if as_json:
+        _print_survey_json(results, show_repr)
+    else:
+        _print_survey_table(results, show_repr)
 
 
 @app.command("list-graphs")
