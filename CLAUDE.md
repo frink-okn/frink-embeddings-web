@@ -25,11 +25,12 @@ One shared search core powers three interfaces:
 
 Supporting modules:
 
-- **indexing/** — Typer app (`frink-indexing`) that produces the embeddings: textify/materialize
-  RDF (HDT) graphs into embedding records, sample types/targets, and `upload` the materialized
-  JSONL into Qdrant (`indexing/upload.py` embeds each record through the shared
-  `core/embedding.py` seam — so stored vectors match the query path — and upserts with
-  idempotent UUID5 point IDs). See also the `textify` skill.
+- **indexing/** — Typer app (`frink-indexing`) that produces the embeddings: `textify`
+  materializes RDF (HDT) graphs into embedding-text records (`--jsonl` for one record per line),
+  `sample-types`/`sample-targets` explore the graph, and `upload` reads those JSONL records,
+  embeds each through the shared `core/embedding.py` seam (so stored vectors match the query
+  path) and upserts with idempotent UUID5 point IDs — so the pipeline connects end-to-end as
+  `textify --jsonl … | upload …`. See also the `textify` skill.
 - **evaluation/** — compares kNN vs ANN search quality and renders a markdown report.
 - **config/** — `AppSettings` (pydantic-settings) loaded from `default.env` then `.env`;
   `AppContext.from_env()` constructs the Qdrant client and embedding model.

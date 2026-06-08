@@ -455,6 +455,17 @@ def write_json(records: Iterable[OutputRecord], output_path: Path):
         )
 
 
+def write_jsonl(records: Iterable[OutputRecord], output_path: Path):
+    with output_path.open("w", encoding="utf-8") as f:
+        for record in records:
+            write_jsonl_record(record, f)
+
+
+def write_jsonl_record(record: OutputRecord, f) -> None:
+    json.dump(asdict(record), f, ensure_ascii=False)
+    f.write("\n")
+
+
 def write_text(records: Iterable[OutputRecord], output_path: Path):
     with output_path.open("w", encoding="utf-8") as f:
         for r in records:

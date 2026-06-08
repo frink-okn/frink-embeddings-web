@@ -11,6 +11,7 @@ from .index import (
     load_graph,
     materialize_records,
     write_json,
+    write_jsonl,
     write_text,
 )
 from .models import MaterializationConfiguration
@@ -59,6 +60,13 @@ def textify(
             help="Write debug text output instead of JSON.",
         ),
     ] = False,
+    jsonl: Annotated[
+        bool,
+        typer.Option(
+            "--jsonl",
+            help="Write JSON Lines output, one grouped record per line.",
+        ),
+    ] = False,
     target: Annotated[
         str | None,
         typer.Option(
@@ -83,6 +91,9 @@ def textify(
         ),
     ] = 10,
 ):
+    if text and jsonl:
+        raise typer.BadParameter("--text and --jsonl cannot be used together")
+
     graph = load_graph(hdt_file)
     config = MaterializationConfiguration.from_toml(config_toml)
     records = materialize_records(
@@ -95,6 +106,8 @@ def textify(
 
     if text:
         write_text(records, output)
+    elif jsonl:
+        write_jsonl(records, output)
     else:
         write_json(records, output)
 
