@@ -7,10 +7,10 @@ from typing import Iterable
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import RDF
 
-from .index import Textifier, materialize_records
 from .models import GraphConfiguration, MaterializationConfiguration
 from .output import OutputRecord
 from .reader import graph_reader
+from .textify import Textifier, materialize_records
 
 
 @dataclass

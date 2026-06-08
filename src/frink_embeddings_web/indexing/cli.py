@@ -7,7 +7,6 @@ from loguru import logger
 
 from ..config import AppContext
 from ..core.errors import friendly_error
-from .index import materialize_records
 from .models import MaterializationConfiguration
 from .output import write_json, write_jsonl, write_text
 from .reader import load_graph
@@ -19,6 +18,7 @@ from .sample import (
     write_sample_types_json,
     write_sample_types_text,
 )
+from .textify import materialize_records
 from .upload import upload_files
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)

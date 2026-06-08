@@ -3,10 +3,6 @@ from pathlib import Path
 from rdflib import Graph, URIRef
 from rdflib.namespace import RDF, RDFS
 
-from frink_embeddings_web.indexing.index import (
-    Textifier,
-    materialize_records,
-)
 from frink_embeddings_web.indexing.models import (
     GraphConfiguration,
     MaterializationConfiguration,
@@ -18,6 +14,10 @@ from frink_embeddings_web.indexing.text import (
     fallback_label,
     humanize,
     stable_score,
+)
+from frink_embeddings_web.indexing.textify import (
+    Textifier,
+    materialize_records,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
