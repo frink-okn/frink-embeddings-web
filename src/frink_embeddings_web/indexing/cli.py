@@ -74,6 +74,14 @@ def textify(
             help="Maximum number of root nodes to process per target.",
         ),
     ] = None,
+    max_iris_per_record: Annotated[
+        int,
+        typer.Option(
+            "--max-iris-per-record",
+            min=1,
+            help="Maximum source IRIs to keep for each grouped output record.",
+        ),
+    ] = 10,
 ):
     graph = load_graph(hdt_file)
     config = MaterializationConfiguration.from_toml(config_toml)
@@ -82,6 +90,7 @@ def textify(
         config,
         target=target,
         limit=limit,
+        max_iris_per_record=max_iris_per_record,
     )
 
     if text:

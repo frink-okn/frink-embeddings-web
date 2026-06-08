@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Generator, Iterable
 
 import typer
+from loguru import logger
 from rdflib import BNode, Graph, Literal, Node, URIRef
 from rdflib.namespace import RDF
 from rdflib_hdt import HDTStore
@@ -27,6 +28,9 @@ class OutputRecord:
     iris: list[str]
     label: str
     embedding_text: str
+    # Total distinct IRIs that produced this text, before `iris` is capped at
+    # `max_iris_per_record`. May exceed `len(iris)`.
+    iri_count: int
 
 
 def load_graph(hdt_file: Path):
@@ -383,6 +387,7 @@ def materialize_records(
     config: MaterializationConfiguration,
     target: str | None = None,
     limit: int | None = None,
+    max_iris_per_record: int = 10,
 ) -> list[OutputRecord]:
     target_configs = (
         [config.for_target(target)] if target else list(config.iter_targets())
@@ -419,13 +424,24 @@ def materialize_records(
                     iris=[iri],
                     label=label,
                     embedding_text=text,
+                    iri_count=1,
                 )
             elif iri not in record.iris:
-                record.iris.append(iri)
+                record.iri_count += 1
+                if len(record.iris) < max_iris_per_record:
+                    record.iris.append(iri)
 
     records = list(by_digest.values())
     for record in records:
         record.iris.sort()
+        if record.iri_count > max_iris_per_record:
+            logger.warning(
+                "Truncated grouped record IRIs from {} to {} for "
+                "embedding text:\n{}",
+                record.iri_count,
+                len(record.iris),
+                record.embedding_text,
+            )
     return sorted(records, key=lambda r: (r.embedding_text, r.iris))
 
 
