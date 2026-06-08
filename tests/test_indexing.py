@@ -1,3 +1,4 @@
+from qdrant_client.models import ScoredPoint
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import RDF
 
@@ -115,12 +116,13 @@ def test_jsonl_output_round_trips_into_an_upload_payload(tmp_path):
     read_back = list(iter_jsonl(out))
     assert len(read_back) == 1
 
-    class _Point:
-        payload = payload_for_record("thing", read_back[0])
-        id = "pid"
-        score = 0.9
-
-    row = summarize_point(_Point())
+    point = ScoredPoint(
+        id="pid",
+        version=0,
+        score=0.9,
+        payload=payload_for_record("thing", read_back[0]),
+    )
+    row = summarize_point(point)
 
     assert row.graph == "thing"
     assert row.primary_uri == "http://example.org/a"

@@ -1,8 +1,11 @@
+import math
+
 import numpy as np
 import pytest
 from pydantic import ValidationError
-from qdrant_client.models import Filter, ScoredPoint
+from qdrant_client.models import Filter, PointStruct
 
+from frink_embeddings_web.config.context import AppContext
 from frink_embeddings_web.core.explore import (
     resolve_target_graphs,
     run_survey,
@@ -63,66 +66,55 @@ def test_build_feature_bad_type():
         build_feature("bogus", "x")
 
 
-# --- run_survey against a stub client (no network) ---
+# --- run_survey against in-memory Qdrant ---
 
 
-class _FakeResponse:
-    def __init__(self, points):
-        self.points = points
+def _unit(dim: int, cosine: float) -> list[float]:
+    # A unit vector whose cosine similarity to [1, 0, 0, ...] is `cosine`.
+    v = [0.0] * dim
+    v[0] = cosine
+    v[1] = math.sqrt(max(0.0, 1.0 - cosine * cosine))
+    return v
 
 
-class _FakeSettings:
-    qdrant_collection = "C"
-    qdrant_timeout = 5
-    qdrant_hnsw_ef = 128
+def _seed(ctx: AppContext, rows: list[tuple[str, float]]) -> int:
+    # Upsert one point per (graph, cosine-to-the-query) row. Returns the dim.
+    dim = len(ctx.embedder.embed("probe"))
+    ctx.client.upsert(
+        ctx.settings.qdrant_collection,
+        points=[
+            PointStruct(
+                id=i, vector=_unit(dim, cosine), payload={"graph": graph}
+            )
+            for i, (graph, cosine) in enumerate(rows)
+        ],
+    )
+    return dim
 
 
-class _FakeClient:
-    def __init__(self, points_by_graph):
-        self.points_by_graph = points_by_graph
-        self.received_requests = None
+def test_run_survey_orders_graphs_by_best_score(
+    ctx: AppContext, monkeypatch
+):
+    dim = _seed(
+        ctx,
+        [
+            ("g_high", 1.0),
+            ("g_high", 0.9),
+            ("g_mid", 0.5),
+            ("g_low", 0.2),
+            ("g_low", 0.1),
+        ],
+    )
 
-    def query_batch_points(self, collection_name, requests, timeout=None):
-        self.received_requests = requests
-        # Respond in request order; map each request's graph filter to its
-        # canned points so we exercise the zip-back-to-graphs logic.
-        responses = []
-        for req in requests:
-            graph = req.filter.must[0].match.any[0]
-            responses.append(_FakeResponse(self.points_by_graph.get(graph, [])))
-        return responses
+    calls = {"n": 0}
 
-
-class _FakeCtx:
-    def __init__(self, client):
-        self.client = client
-        self.settings = _FakeSettings()
-        self.embedder = None
-
-
-def _point(score):
-    return ScoredPoint(id=1, version=0, score=score, payload={})
-
-
-def test_run_survey_orders_by_best_score_and_embeds_once(monkeypatch):
-    calls = {"embed": 0}
-
-    def fake_embed(ctx, feature):
-        calls["embed"] += 1
-        return np.array([0.1, 0.2, 0.3], dtype=np.float32)
+    def embed(_ctx, _feature):
+        calls["n"] += 1
+        return np.array(_unit(dim, 1.0), dtype=np.float32)
 
     monkeypatch.setattr(
-        "frink_embeddings_web.core.explore.get_embedding", fake_embed
+        "frink_embeddings_web.core.explore.get_embedding", embed
     )
-
-    client = _FakeClient(
-        {
-            "g_low": [_point(0.2), _point(0.1)],
-            "g_high": [_point(0.9), _point(0.8)],
-            "g_mid": [_point(0.5)],
-        }
-    )
-    ctx = _FakeCtx(client)
 
     results = run_survey(
         ctx,
@@ -131,28 +123,22 @@ def test_run_survey_orders_by_best_score_and_embeds_once(monkeypatch):
         limit=2,
     )
 
-    # Embedded exactly once, reused for every graph.
-    assert calls["embed"] == 1
-    # One batched request per target graph, with the per-graph limit applied.
-    assert len(client.received_requests) == 3
-    assert all(req.limit == 2 for req in client.received_requests)
-    # Results sorted by best hit score, descending.
+    assert calls["n"] == 1  # embedded once, reused for every graph
     assert [r.graph for r in results] == ["g_high", "g_mid", "g_low"]
-    assert results[0].points[0].score == 0.9
+    assert len(results[0].points) == 2  # per-graph limit honored
+    assert results[0].points[0].score == pytest.approx(1.0, abs=1e-3)
 
 
-def test_run_survey_all_graphs_uses_get_graphs(monkeypatch):
+def test_run_survey_with_no_filter_surveys_every_graph(
+    ctx: AppContext, monkeypatch
+):
+    dim = _seed(ctx, [("a", 0.3), ("b", 0.7)])
     monkeypatch.setattr(
         "frink_embeddings_web.core.explore.get_embedding",
-        lambda ctx, feature: np.array([0.0], dtype=np.float32),
-    )
-    monkeypatch.setattr(
-        "frink_embeddings_web.core.explore.get_graphs",
-        lambda ctx: ["a", "b"],
+        lambda _ctx, _feature: np.array(_unit(dim, 1.0), dtype=np.float32),
     )
 
-    client = _FakeClient({"a": [_point(0.3)], "b": [_point(0.7)]})
-    results = run_survey(_FakeCtx(client), build_feature("text", "q"))
+    # No include/exclude: the graph list is discovered via get_graphs (facet).
+    results = run_survey(ctx, build_feature("text", "q"))
 
-    assert {r.graph for r in results} == {"a", "b"}
     assert [r.graph for r in results] == ["b", "a"]

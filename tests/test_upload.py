@@ -2,7 +2,9 @@ import json
 
 import numpy as np
 import pytest
+from qdrant_client.models import ScoredPoint
 
+from frink_embeddings_web.config.context import AppContext
 from frink_embeddings_web.core.embedding import FastEmbedEmbedder
 from frink_embeddings_web.core.results import summarize_point
 from frink_embeddings_web.indexing.upload import (
@@ -12,6 +14,22 @@ from frink_embeddings_web.indexing.upload import (
     point_id,
     upload_file,
 )
+
+
+def _write_records(path, n: int) -> None:
+    with path.open("w", encoding="utf-8") as f:
+        for i in range(n):
+            f.write(
+                json.dumps(
+                    {
+                        "iris": [f"urn:{i}"],
+                        "label": f"L{i}",
+                        "embedding_text": f"text {i}",
+                    }
+                )
+                + "\n"
+            )
+
 
 # --- point_id: deterministic and idempotent ---
 
@@ -51,7 +69,6 @@ def test_payload_maps_to_query_side_fields():
     assert payload["iri"] == ["urn:a", "urn:b"]
     assert payload["repr"] == "label: A Thing\ntype: Foo"
     assert payload["label"] == "A Thing"
-    # The renamed source keys are not carried through verbatim.
     assert "embedding_text" not in payload
     assert "iris" not in payload
 
@@ -62,13 +79,14 @@ def test_payload_round_trips_through_summarize_point():
         "label": "A Thing",
         "embedding_text": "some text",
     }
+    point = ScoredPoint(
+        id="pid",
+        version=0,
+        score=0.5,
+        payload=payload_for_record("my-graph", record),
+    )
 
-    class _Point:
-        payload = payload_for_record("my-graph", record)
-        id = "pid"
-        score = 0.5
-
-    row = summarize_point(_Point())
+    row = summarize_point(point)
     assert row.graph == "my-graph"
     assert row.iris == ["urn:a", "urn:b"]
     assert row.primary_uri == "urn:a"
@@ -97,59 +115,13 @@ def test_chunks_batches_with_remainder():
     assert [len(b) for b in batches] == [2, 2, 1]
 
 
-# --- upload_file against a fake client + stub embedder ---
+# --- upload_file against in-memory Qdrant (the shared `ctx` fixture) ---
 
 
-class _StubEmbedder:
-    def __init__(self, dim=3):
-        self.dim = dim
-
-    def embed(self, text):
-        return np.ones(self.dim, dtype=np.float32)
-
-    def embed_many(self, texts):
-        return [np.ones(self.dim, dtype=np.float32) for _ in texts]
-
-
-class _FakeClient:
-    def __init__(self):
-        self.upserted = []
-
-    def upsert(self, collection_name, points, wait):
-        self.upserted.extend(points)
-
-
-class _FakeSettings:
-    qdrant_collection = "C"
-    qdrant_location = "http://x"
-
-
-class _FakeCtx:
-    def __init__(self):
-        self.client = _FakeClient()
-        self.embedder = _StubEmbedder()
-        self.settings = _FakeSettings()
-
-
-def _write_records(path, n):
-    with path.open("w", encoding="utf-8") as f:
-        for i in range(n):
-            f.write(
-                json.dumps(
-                    {
-                        "iris": [f"urn:{i}"],
-                        "label": f"L{i}",
-                        "embedding_text": f"text {i}",
-                    }
-                )
-                + "\n"
-            )
-
-
-def test_upload_file_upserts_all_points(tmp_path):
+def test_upload_file_upserts_all_points(ctx: AppContext, tmp_path):
+    collection = ctx.settings.qdrant_collection
     path = tmp_path / "my-graph.jsonl"
     _write_records(path, 5)
-    ctx = _FakeCtx()
 
     uploaded = upload_file(
         ctx,
@@ -163,16 +135,18 @@ def test_upload_file_upserts_all_points(tmp_path):
     )
 
     assert uploaded == 5
-    assert len(ctx.client.upserted) == 5
-    # graph comes from the file stem; payload mapping applied.
-    assert all(p.payload["graph"] == "my-graph" for p in ctx.client.upserted)
-    assert ctx.client.upserted[0].payload["repr"] == "text 0"
+    assert ctx.client.count(collection).count == 5
+    # graph comes from the file stem; payload mapping lands what the query side
+    # reads.
+    points, _ = ctx.client.scroll(collection, limit=10, with_payload=True)
+    payloads = [p.payload or {} for p in points]
+    assert all(p["graph"] == "my-graph" for p in payloads)
+    assert {p["repr"] for p in payloads} == {f"text {i}" for i in range(5)}
 
 
-def test_upload_file_dry_run_skips_upsert(tmp_path):
+def test_upload_file_dry_run_skips_upsert(ctx: AppContext, tmp_path):
     path = tmp_path / "g.jsonl"
     _write_records(path, 3)
-    ctx = _FakeCtx()
 
     uploaded = upload_file(
         ctx,
@@ -186,13 +160,12 @@ def test_upload_file_dry_run_skips_upsert(tmp_path):
     )
 
     assert uploaded == 3
-    assert ctx.client.upserted == []
+    assert ctx.client.count(ctx.settings.qdrant_collection).count == 0
 
 
-def test_upload_file_honors_limit(tmp_path):
+def test_upload_file_honors_limit(ctx: AppContext, tmp_path):
     path = tmp_path / "g.jsonl"
     _write_records(path, 10)
-    ctx = _FakeCtx()
 
     uploaded = upload_file(
         ctx,
@@ -206,23 +179,35 @@ def test_upload_file_honors_limit(tmp_path):
     )
 
     assert uploaded == 3
-    assert len(ctx.client.upserted) == 3
+    assert ctx.client.count(ctx.settings.qdrant_collection).count == 3
 
 
-# --- seam: single embed delegates to batch embed_many ---
+def test_reupload_is_idempotent(ctx: AppContext, tmp_path):
+    # Stable UUID5 point IDs mean re-running upserts in place, not duplicating.
+    path = tmp_path / "my-graph.jsonl"
+    _write_records(path, 5)
+
+    for _ in range(2):
+        upload_file(
+            ctx,
+            path,
+            batch_size=4,
+            upload_batch_size=4,
+            limit=None,
+            dry_run=False,
+            progress_enabled=False,
+            log_every=10_000,
+        )
+
+    assert ctx.client.count(ctx.settings.qdrant_collection).count == 5
 
 
-def test_embed_delegates_to_embed_many():
-    class _Spy(FastEmbedEmbedder):
-        def __init__(self):
-            self.seen = None
+# --- seam: single embed agrees with batch embed_many ---
 
-        def embed_many(self, texts):
-            self.seen = texts
-            return [np.array([1.0, 2.0], dtype=np.float32)]
 
-    spy = _Spy()
-    out = spy.embed("hello")
+def test_embed_matches_embed_many(embedder: FastEmbedEmbedder):
+    one = embedder.embed("diabetes")
+    many = embedder.embed_many(["diabetes", "insulin"])
 
-    assert spy.seen == ["hello"]
-    assert out.tolist() == [1.0, 2.0]
+    assert len(many) == 2
+    assert np.array_equal(one, many[0])
