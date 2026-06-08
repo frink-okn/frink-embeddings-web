@@ -5,11 +5,12 @@ from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Generator, Iterable
+from typing import Literal as TypingLiteral
 
-import typer
 from loguru import logger
 from rdflib import BNode, Graph, Literal, Node, URIRef
 from rdflib.namespace import RDF
+from rdflib.util import from_n3
 from rdflib_hdt import HDTStore
 
 from .models import (
@@ -19,8 +20,6 @@ from .models import (
 )
 
 RDFS_LABEL = "http://www.w3.org/2000/01/rdf-schema#label"
-
-app = typer.Typer()
 
 
 @dataclass
@@ -36,6 +35,175 @@ class OutputRecord:
 def load_graph(hdt_file: Path):
     store = HDTStore(str(hdt_file))
     return Graph(store=store)
+
+
+# --- graph backends -------------------------------------------------------
+#
+# A backend reads triples out of the graph as lightweight `GraphTerm`s. The
+# HDT backend reads the native HDT document directly, which avoids rdflib's
+# per-term object construction -- the dominant cost when materializing.
+
+
+@dataclass(frozen=True)
+class GraphTerm:
+    """An RDF term as a `kind` plus its string value.
+
+    Used instead of full rdflib `URIRef`/`Literal` objects on the materialize
+    hot path: constructing/validating rdflib terms for every triple is a large
+    share of the cost, and we only ever need the string value here.
+    """
+
+    kind: TypingLiteral["iri", "literal", "bnode"]
+    value: str
+
+    def __str__(self) -> str:
+        return self.value
+
+
+class GraphBackend:
+    """Read access to a graph in terms of `GraphTerm`s."""
+
+    def root_iris(self, root_type: str) -> Iterable[str]:
+        raise NotImplementedError
+
+    def predicate_objects(
+        self, subject: Any
+    ) -> Iterable[tuple[GraphTerm, GraphTerm]]:
+        raise NotImplementedError
+
+    def objects(self, subject: Any, predicate_iri: str) -> Iterable[GraphTerm]:
+        raise NotImplementedError
+
+    def term(self, node: Any) -> GraphTerm:
+        raise NotImplementedError
+
+    def types(self, node: Any) -> Iterable[str]:
+        for obj in self.objects(node, str(RDF.type)):
+            if obj.kind == "iri":
+                yield obj.value
+
+    def first_literal(
+        self, subject: Any, predicates: Iterable[str]
+    ) -> str | None:
+        for predicate in predicates:
+            for obj in self.objects(subject, predicate):
+                if obj.kind == "literal":
+                    return obj.value
+        return None
+
+
+class RDFLibBackend(GraphBackend):
+    """Backend over any in-memory rdflib graph (used by tests)."""
+
+    def __init__(self, graph: Graph):
+        self.graph = graph
+
+    def root_iris(self, root_type: str) -> Iterable[str]:
+        for node in self.graph.subjects(RDF.type, URIRef(root_type)):
+            if isinstance(node, URIRef):
+                yield str(node)
+
+    def predicate_objects(
+        self, subject: Any
+    ) -> Iterable[tuple[GraphTerm, GraphTerm]]:
+        node = self._to_node(subject)
+        if isinstance(node, Literal):
+            return
+        for pred, obj in self.graph.predicate_objects(node):
+            if isinstance(pred, URIRef):
+                yield self.term(pred), self.term(obj)
+
+    def objects(self, subject: Any, predicate_iri: str) -> Iterable[GraphTerm]:
+        node = self._to_node(subject)
+        if isinstance(node, Literal):
+            return
+        for obj in self.graph.objects(node, URIRef(predicate_iri)):
+            yield self.term(obj)
+
+    def term(self, node: Any) -> GraphTerm:
+        if isinstance(node, GraphTerm):
+            return node
+        if isinstance(node, Literal):
+            return GraphTerm("literal", str(node))
+        if isinstance(node, BNode):
+            return GraphTerm("bnode", str(node))
+        return GraphTerm("iri", str(node))
+
+    def _to_node(self, node: Any) -> Node:
+        if isinstance(node, GraphTerm):
+            if node.kind == "literal":
+                return Literal(node.value)
+            if node.kind == "bnode":
+                return BNode(node.value)
+            return URIRef(node.value)
+        return node
+
+
+class HDTBackend(GraphBackend):
+    """Backend that reads the native HDT document, skipping rdflib terms."""
+
+    def __init__(self, graph: Graph):
+        self.graph = graph
+        self.document = graph.store.hdt_document
+
+    def root_iris(self, root_type: str) -> Iterable[str]:
+        triples, _ = self.document.search_triples("", str(RDF.type), root_type)
+        for subject, _, _ in triples:
+            if not subject.startswith("_:"):
+                yield subject
+
+    def predicate_objects(
+        self, subject: Any
+    ) -> Iterable[tuple[GraphTerm, GraphTerm]]:
+        subject_term = self.term(subject)
+        if subject_term.kind == "literal":
+            return
+        triples, _ = self.document.search_triples(subject_term.value, "", "")
+        for _, pred, obj in triples:
+            yield GraphTerm("iri", pred), self._term_from_hdt(obj)
+
+    def objects(self, subject: Any, predicate_iri: str) -> Iterable[GraphTerm]:
+        subject_term = self.term(subject)
+        if subject_term.kind == "literal":
+            return
+        triples, _ = self.document.search_triples(
+            subject_term.value, predicate_iri, ""
+        )
+        for _, _, obj in triples:
+            yield self._term_from_hdt(obj)
+
+    def term(self, node: Any) -> GraphTerm:
+        if isinstance(node, GraphTerm):
+            return node
+        if isinstance(node, Literal):
+            return GraphTerm("literal", str(node))
+        if isinstance(node, BNode):
+            return GraphTerm("bnode", f"_:{node}")
+        if isinstance(node, URIRef):
+            return GraphTerm("iri", str(node))
+        return self._term_from_hdt(str(node))
+
+    def _term_from_hdt(self, text: str) -> GraphTerm:
+        if text.startswith("_:"):
+            return GraphTerm("bnode", text)
+        if text.startswith('"'):
+            try:
+                node = from_n3(text)
+            except Exception:
+                return GraphTerm("literal", text)
+            if isinstance(node, Literal):
+                return GraphTerm("literal", str(node))
+            return GraphTerm("literal", text)
+        return GraphTerm("iri", text)
+
+
+def backend_for_graph(graph: Graph) -> GraphBackend:
+    if hasattr(graph.store, "hdt_document"):
+        return HDTBackend(graph)
+    return RDFLibBackend(graph)
+
+
+# --- text helpers (pure) --------------------------------------------------
 
 
 def humanize(text: str) -> str:
@@ -71,315 +239,249 @@ def effective_label_predicates(config: GraphConfiguration) -> list[str]:
     return predicates
 
 
-def first_literal(graph: Graph, s: Node, ps: Iterable[str]):
-    for p in ps:
-        for o in graph.objects(s, URIRef(p)):
-            if isinstance(o, Literal):
-                return str(o)
-    return None
-
-
-def best_label(
-    graph: Graph,
-    node: Any,
-    config: GraphConfiguration | None = None,
-    use_fallback=True,
-    use_humanize=True,
-):
-    if isinstance(node, Literal):
-        return str(node)
-
-    label_predicates = (
-        effective_label_predicates(config)
-        if config is not None
-        else (RDFS_LABEL,)
-    )
-
-    if isinstance(node, Node):
-        label = first_literal(graph, node, label_predicates)
-        if label:
-            return label
-
-    if isinstance(node, URIRef) and use_fallback:
-        return humanize(iri_fragment(str(node))) if use_humanize else str(node)
-
-    return None
-
-
-def predicate_text(graph: Graph, pred: URIRef, config: GraphConfiguration):
-    label = best_label(graph, pred, config)
-    if not label:
-        label = fallback_label(str(pred))
-    return humanize(label).lower()
-
-
 def normalize_label(text: str) -> str:
     return " ".join(text.split())
 
 
-def stable_score(root: Node, pred: Node, obj: Node) -> str:
+def stable_score(root: Any, pred: Any, obj: Any) -> str:
     text = f"{root}\t{pred}\t{obj}"
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def walk_graph(
-    graph: Graph,
-    root: Node,
-    config: GraphConfiguration,
-    expansion_level=0,
-) -> Generator[tuple[int, Node, Node, Node], None, None]:
-    if config.ignore_predicates is None:
-        ignore_predicates = set()
-    else:
-        ignore_predicates = set(config.ignore_predicates)
-
-    objects_by_predicate: defaultdict[Node, list[Node]] = defaultdict(list)
-
-    for p, o in graph.predicate_objects(root):
-        p_str = str(p)
-        if p_str in ignore_predicates:
-            continue
-        objects_by_predicate[p].append(o)
-
-    for p in sorted(objects_by_predicate, key=str):
-        objects = objects_by_predicate[p]
-        if config.predicate_limit is not None:
-            objects = sorted(
-                objects,
-                key=lambda o: stable_score(root, p, o),
-            )[: config.predicate_limit]
-
-        for o in objects:
-            yield expansion_level, root, p, o
-
-            if (
-                not isinstance(o, Literal)
-                and expansion_level < config.expansion_limit
-            ):
-                yield from walk_graph(
-                    graph,
-                    o,
-                    config,
-                    expansion_level=expansion_level + 1,
-                )
+def text_digest(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def build_graph(
-    graph: Graph,
-    root: Node,
-    config: GraphConfiguration,
-) -> Graph:
-    g = Graph()
-
-    for _, s, p, o in walk_graph(graph, root, config):
-        g.add((s, p, o))
-
-    return g
+# --- materialization ------------------------------------------------------
 
 
-def build_embedding_text(
-    graph: Graph,
-    root: Node,
-    config: GraphConfiguration,
-    label: str | None = None,
-    materialization_config: MaterializationConfiguration | None = None,
-) -> str:
-    lines: list[str] = []
+class GraphReader:
+    """Reads and interprets a single graph for materialization.
 
-    if label is None:
-        label = display_label(
-            graph,
-            root,
-            config,
-            materialization_config=materialization_config,
-        )
-    if label:
-        lines.append(f"label: {label}")
+    Bound to one graph, it owns the backend (rdflib or native HDT) and a
+    predicate-label cache, and exposes the operations the textifier needs:
+    traversing edges, resolving human-readable labels, and building embedding
+    text. Holding that state here keeps it off every call signature. `config`
+    is the top-level `MaterializationConfiguration` (for label profiles); the
+    per-node methods also take the resolved per-target `config` they apply.
+    """
 
-    for level, _, p, o in walk_graph(graph, root, config):
-        if level > 0:
-            continue
-        if not isinstance(p, URIRef):
-            continue
+    def __init__(
+        self,
+        graph: Graph,
+        config: MaterializationConfiguration | None = None,
+    ):
+        self.backend = backend_for_graph(graph)
+        self.config = config
+        self._predicate_cache: dict[tuple[str, int], str] = {}
 
-        pred_txt = predicate_text(graph, p, config)
-        obj_txt = display_label(
-            graph,
-            o,
-            config,
-            materialization_config=materialization_config,
-            use_target_template=False,
+    def root_iris(self, root_type: str) -> Iterable[str]:
+        return self.backend.root_iris(root_type)
+
+    def best_label(
+        self,
+        node: Any,
+        config: GraphConfiguration | None = None,
+        use_fallback: bool = True,
+        use_humanize: bool = True,
+    ) -> str | None:
+        term = self.backend.term(node)
+
+        if term.kind == "literal":
+            return term.value
+
+        label_predicates = (
+            effective_label_predicates(config)
+            if config is not None
+            else (RDFS_LABEL,)
         )
 
-        if not obj_txt or isinstance(o, BNode):
-            continue
-
-        lines.append(f"{pred_txt}: {obj_txt}")
-
-    return "\n".join(lines)
-
-
-def first_direct_value(
-    graph: Graph,
-    root: Node,
-    predicate_iri: str,
-    config: GraphConfiguration,
-    materialization_config: MaterializationConfiguration | None = None,
-) -> str | None:
-    values = []
-
-    for obj in graph.objects(root, URIRef(predicate_iri)):
-        if isinstance(obj, BNode):
-            continue
-        label = display_label(
-            graph,
-            obj,
-            config,
-            materialization_config=materialization_config,
-            use_target_template=False,
-        )
-        if label:
-            values.append(label)
-
-    if not values:
-        return None
-
-    return sorted(values)[0]
-
-
-def render_template(
-    graph: Graph,
-    root: Node,
-    template: str,
-    fields: dict[str, str],
-    config: GraphConfiguration,
-    materialization_config: MaterializationConfiguration | None = None,
-) -> str | None:
-    def replace(match: re.Match[str]) -> str:
-        field = match.group(1).strip()
-        predicate_iri = fields.get(field)
-        if predicate_iri is None:
-            return ""
-        return (
-            first_direct_value(
-                graph,
-                root,
-                predicate_iri,
-                config,
-                materialization_config=materialization_config,
-            )
-            or ""
-        )
-
-    label = re.sub(r"\{([^{}]+)\}", replace, template)
-    label = normalize_label(label)
-    return label or None
-
-
-def render_label_template(
-    graph: Graph,
-    root: Node,
-    config: GraphConfiguration,
-    materialization_config: MaterializationConfiguration | None = None,
-) -> str | None:
-    template = getattr(config, "label_template", None)
-    fields = getattr(config, "label_fields", {})
-    if not template:
-        return None
-    return render_template(
-        graph,
-        root,
-        template,
-        fields,
-        config,
-        materialization_config=materialization_config,
-    )
-
-
-def render_profile_label(
-    graph: Graph,
-    root: Node,
-    profile: LabelProfileConfiguration,
-    config: GraphConfiguration,
-    materialization_config: MaterializationConfiguration | None = None,
-) -> str | None:
-    return render_template(
-        graph,
-        root,
-        profile.template,
-        profile.fields,
-        config,
-        materialization_config=materialization_config,
-    )
-
-
-def label_profile_for_node(
-    graph: Graph,
-    node: Node,
-    config: MaterializationConfiguration,
-) -> LabelProfileConfiguration | None:
-    for type_node in graph.objects(node, RDF.type):
-        if isinstance(type_node, URIRef):
-            profile = config.label_profile_for_type(str(type_node))
-            if profile is not None:
-                return profile
-    return None
-
-
-def display_label(
-    graph: Graph,
-    root: Node,
-    config: GraphConfiguration,
-    materialization_config: MaterializationConfiguration | None = None,
-    use_target_template: bool = True,
-) -> str:
-    if materialization_config is not None:
-        profile = None
-        profile_name = getattr(config, "label_profile", None)
-        if use_target_template and profile_name:
-            profile = materialization_config.label_profiles.get(profile_name)
-        if profile is None:
-            profile = label_profile_for_node(
-                graph,
-                root,
-                materialization_config,
-            )
-        if profile is not None:
-            label = render_profile_label(
-                graph,
-                root,
-                profile,
-                config,
-                materialization_config=materialization_config,
-            )
+        if term.kind != "bnode":
+            label = self.backend.first_literal(term, label_predicates)
             if label:
                 return label
 
-    if use_target_template:
-        label = render_label_template(
-            graph,
-            root,
-            config,
-            materialization_config=materialization_config,
+        if term.kind == "iri" and use_fallback:
+            if use_humanize:
+                return humanize(iri_fragment(term.value))
+            return term.value
+
+        return None
+
+    def predicate_text(self, pred: Any, config: GraphConfiguration) -> str:
+        pred_term = self.backend.term(pred)
+        key = (pred_term.value, id(config))
+        cached = self._predicate_cache.get(key)
+        if cached is not None:
+            return cached
+
+        label = self.best_label(pred_term, config)
+        if not label:
+            label = fallback_label(pred_term.value)
+        text = humanize(label).lower()
+
+        self._predicate_cache[key] = text
+        return text
+
+    def walk(
+        self,
+        root: Any,
+        config: GraphConfiguration,
+        expansion_level: int = 0,
+    ) -> Generator[tuple[int, GraphTerm, GraphTerm, GraphTerm], None, None]:
+        root_term = self.backend.term(root)
+        ignore_predicates = set(config.ignore_predicates or [])
+
+        objects_by_predicate: defaultdict[GraphTerm, list[GraphTerm]] = (
+            defaultdict(list)
         )
+        for p, o in self.backend.predicate_objects(root_term):
+            if p.value in ignore_predicates:
+                continue
+            objects_by_predicate[p].append(o)
+
+        for p in sorted(objects_by_predicate, key=lambda term: term.value):
+            objects = objects_by_predicate[p]
+            if config.predicate_limit is not None:
+                objects = sorted(
+                    objects,
+                    key=lambda o: stable_score(root_term, p, o),
+                )[: config.predicate_limit]
+
+            for o in objects:
+                yield expansion_level, root_term, p, o
+
+                if (
+                    o.kind != "literal"
+                    and expansion_level < config.expansion_limit
+                ):
+                    yield from self.walk(o, config, expansion_level + 1)
+
+    def first_direct_value(
+        self,
+        root: Any,
+        predicate_iri: str,
+        config: GraphConfiguration,
+    ) -> str | None:
+        values = []
+        for obj in self.backend.objects(root, predicate_iri):
+            if obj.kind == "bnode":
+                continue
+            label = self.display_label(obj, config, use_target_template=False)
+            if label:
+                values.append(label)
+
+        if not values:
+            return None
+        return sorted(values)[0]
+
+    def render_template(
+        self,
+        root: Any,
+        template: str,
+        fields: dict[str, str],
+        config: GraphConfiguration,
+    ) -> str | None:
+        def replace(match: re.Match[str]) -> str:
+            field = match.group(1).strip()
+            predicate_iri = fields.get(field)
+            if predicate_iri is None:
+                return ""
+            return self.first_direct_value(root, predicate_iri, config) or ""
+
+        label = re.sub(r"\{([^{}]+)\}", replace, template)
+        return normalize_label(label) or None
+
+    def render_label_template(
+        self, root: Any, config: GraphConfiguration
+    ) -> str | None:
+        template = getattr(config, "label_template", None)
+        fields = getattr(config, "label_fields", {})
+        if not template:
+            return None
+        return self.render_template(root, template, fields, config)
+
+    def render_profile_label(
+        self,
+        root: Any,
+        profile: LabelProfileConfiguration,
+        config: GraphConfiguration,
+    ) -> str | None:
+        return self.render_template(
+            root, profile.template, profile.fields, config
+        )
+
+    def label_profile_for_node(
+        self, node: Any
+    ) -> LabelProfileConfiguration | None:
+        if self.config is None or not self.config.label_profiles:
+            return None
+        for type_iri in self.backend.types(node):
+            profile = self.config.label_profile_for_type(type_iri)
+            if profile is not None:
+                return profile
+        return None
+
+    def display_label(
+        self,
+        root: Any,
+        config: GraphConfiguration,
+        use_target_template: bool = True,
+    ) -> str:
+        root_term = self.backend.term(root)
+
+        if self.config is not None:
+            profile = None
+            profile_name = getattr(config, "label_profile", None)
+            if use_target_template and profile_name:
+                profile = self.config.label_profiles.get(profile_name)
+            if profile is None and self.config.label_profiles:
+                profile = self.label_profile_for_node(root_term)
+            if profile is not None:
+                label = self.render_profile_label(root_term, profile, config)
+                if label:
+                    return label
+
+        if use_target_template:
+            label = self.render_label_template(root_term, config)
+            if label:
+                return label
+
+        label = self.best_label(root_term, config)
         if label:
-            return label
+            return normalize_label(label)
 
-    label = best_label(graph, root, config)
-    if label:
-        return normalize_label(label)
+        return root_term.value
 
-    return str(root)
+    def build_embedding_text(
+        self,
+        root: Any,
+        config: GraphConfiguration,
+        label: str | None = None,
+    ) -> str:
+        root_term = self.backend.term(root)
+        lines: list[str] = []
 
+        if label is None:
+            label = self.display_label(root_term, config)
+        if label:
+            lines.append(f"label: {label}")
 
-def root_iris(graph: Graph, root_type: str):
-    for node in graph.subjects(RDF.type, URIRef(root_type)):
-        if isinstance(node, URIRef):
-            yield str(node)
+        for level, _, p, o in self.walk(root_term, config):
+            if level > 0:
+                continue
+            if p.kind != "iri":
+                continue
 
+            pred_txt = self.predicate_text(p, config)
+            obj_txt = self.display_label(o, config, use_target_template=False)
 
-def text_digest(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+            if not obj_txt or o.kind == "bnode":
+                continue
+
+            lines.append(f"{pred_txt}: {obj_txt}")
+
+        return "\n".join(lines)
 
 
 def materialize_records(
@@ -389,6 +491,7 @@ def materialize_records(
     limit: int | None = None,
     max_iris_per_record: int = 10,
 ) -> list[OutputRecord]:
+    reader = GraphReader(graph, config)
     target_configs = (
         [config.for_target(target)] if target else list(config.iter_targets())
     )
@@ -397,25 +500,14 @@ def materialize_records(
 
     for target_config in target_configs:
         count = 0
-        for iri in root_iris(graph, target_config.type):
+        for iri in reader.root_iris(target_config.type):
             if limit is not None and count >= limit:
                 break
             count += 1
 
-            node = URIRef(iri)
-            label = display_label(
-                graph,
-                node,
-                target_config,
-                materialization_config=config,
-            )
-            text = build_embedding_text(
-                graph,
-                node,
-                target_config,
-                label=label,
-                materialization_config=config,
-            )
+            node = GraphTerm("iri", iri)
+            label = reader.display_label(node, target_config)
+            text = reader.build_embedding_text(node, target_config, label=label)
             digest = text_digest(text)
 
             record = by_digest.get(digest)
@@ -443,6 +535,9 @@ def materialize_records(
                 record.embedding_text,
             )
     return sorted(records, key=lambda r: (r.embedding_text, r.iris))
+
+
+# --- output writers -------------------------------------------------------
 
 
 def write_json(records: Iterable[OutputRecord], output_path: Path):
@@ -476,56 +571,3 @@ def write_text(records: Iterable[OutputRecord], output_path: Path):
             f.write("\n")
             f.write(r.embedding_text)
             f.write("\n\n---\n\n")
-
-
-@app.command()
-def materialize_type(hdt_file: Path, target_type: str):
-    graph = load_graph(hdt_file)
-    config = GraphConfiguration()
-
-    for node_uri in graph.subjects(RDF.type, URIRef(target_type)):
-        build_embedding_text(graph, node_uri, config)
-
-
-@app.command()
-def materialize(hdt_file: Path, config_toml: Path):
-    graph = load_graph(hdt_file)
-    config = MaterializationConfiguration.from_toml(config_toml)
-
-    for target_config in config.iter_targets():
-        for node_uri in graph.subjects(RDF.type, URIRef(target_config.type)):
-            for level, s, p, o in walk_graph(
-                graph, node_uri, target_config
-            ):
-                print("    " * level, end="")
-                print(level, s, p, o)
-            break
-
-
-@app.command()
-def materialize_debug(hdt_file: Path, config_toml: Path):
-    graph = load_graph(hdt_file)
-    config = MaterializationConfiguration.from_toml(config_toml)
-
-    for target_config in config.iter_targets():
-        for node_uri in graph.subjects(RDF.type, URIRef(target_config.type)):
-            for level, s, p, o in walk_graph(
-                graph, node_uri, target_config
-            ):
-                print("    " * level, end="")
-                print(level, s, p, o)
-            break
-
-
-@app.command()
-def walk(hdt_file: Path, target_node: str):
-    graph = load_graph(hdt_file)
-
-    for p, o in graph.predicate_objects(URIRef(target_node)):
-        print(best_label(graph, p, use_humanize=False))
-        print(best_label(graph, o, use_humanize=False))
-        print()
-
-
-if __name__ == "__main__":
-    app()
