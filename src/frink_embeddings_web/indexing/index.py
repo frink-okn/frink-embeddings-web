@@ -37,11 +37,12 @@ def load_graph(hdt_file: Path):
     return Graph(store=store)
 
 
-# --- graph backends -------------------------------------------------------
+# --- graph readers --------------------------------------------------------
 #
-# A backend reads triples out of the graph as lightweight `GraphTerm`s. The
-# HDT backend reads the native HDT document directly, which avoids rdflib's
-# per-term object construction -- the dominant cost when materializing.
+# A GraphReader reads triples out of a graph as lightweight `GraphTerm`s. The
+# HDT reader reads the native HDT document directly, which avoids rdflib's
+# per-term object construction -- the dominant cost when materializing. This
+# layer only reads; turning nodes into text is the Textifier's job.
 
 
 @dataclass(frozen=True)
@@ -60,7 +61,7 @@ class GraphTerm:
         return self.value
 
 
-class GraphBackend:
+class GraphReader:
     """Read access to a graph in terms of `GraphTerm`s."""
 
     def root_iris(self, root_type: str) -> Iterable[str]:
@@ -92,8 +93,8 @@ class GraphBackend:
         return None
 
 
-class RDFLibBackend(GraphBackend):
-    """Backend over any in-memory rdflib graph (used by tests)."""
+class RDFLibGraphReader(GraphReader):
+    """Reader over any in-memory rdflib graph (used by tests)."""
 
     def __init__(self, graph: Graph):
         self.graph = graph
@@ -139,8 +140,8 @@ class RDFLibBackend(GraphBackend):
         return node
 
 
-class HDTBackend(GraphBackend):
-    """Backend that reads the native HDT document, skipping rdflib terms."""
+class HDTGraphReader(GraphReader):
+    """Reader that reads the native HDT document, skipping rdflib terms."""
 
     def __init__(self, graph: Graph):
         self.graph = graph
@@ -197,10 +198,10 @@ class HDTBackend(GraphBackend):
         return GraphTerm("iri", text)
 
 
-def backend_for_graph(graph: Graph) -> GraphBackend:
+def graph_reader(graph: Graph) -> GraphReader:
     if hasattr(graph.store, "hdt_document"):
-        return HDTBackend(graph)
-    return RDFLibBackend(graph)
+        return HDTGraphReader(graph)
+    return RDFLibGraphReader(graph)
 
 
 # --- text helpers (pure) --------------------------------------------------
@@ -252,31 +253,26 @@ def text_digest(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-# --- materialization ------------------------------------------------------
+# --- textification --------------------------------------------------------
 
 
-class GraphReader:
-    """Reads and interprets a single graph for materialization.
+class Textifier:
+    """Turns a graph's nodes into labels and embedding text.
 
-    Bound to one graph, it owns the backend (rdflib or native HDT) and a
-    predicate-label cache, and exposes the operations the textifier needs:
-    traversing edges, resolving human-readable labels, and building embedding
-    text. Holding that state here keeps it off every call signature. `config`
-    is the top-level `MaterializationConfiguration` (for label profiles); the
-    per-node methods also take the resolved per-target `config` they apply.
+    Holds a `GraphReader` (the read layer) plus the top-level
+    `MaterializationConfiguration` (for label profiles) and a predicate-label
+    cache, so the walk/label/text helpers don't thread that state through every
+    call. The per-node methods take the resolved per-target `config` they apply.
     """
 
     def __init__(
         self,
-        graph: Graph,
+        reader: GraphReader,
         config: MaterializationConfiguration | None = None,
     ):
-        self.backend = backend_for_graph(graph)
+        self.reader = reader
         self.config = config
         self._predicate_cache: dict[tuple[str, int], str] = {}
-
-    def root_iris(self, root_type: str) -> Iterable[str]:
-        return self.backend.root_iris(root_type)
 
     def best_label(
         self,
@@ -285,7 +281,7 @@ class GraphReader:
         use_fallback: bool = True,
         use_humanize: bool = True,
     ) -> str | None:
-        term = self.backend.term(node)
+        term = self.reader.term(node)
 
         if term.kind == "literal":
             return term.value
@@ -297,7 +293,7 @@ class GraphReader:
         )
 
         if term.kind != "bnode":
-            label = self.backend.first_literal(term, label_predicates)
+            label = self.reader.first_literal(term, label_predicates)
             if label:
                 return label
 
@@ -309,7 +305,7 @@ class GraphReader:
         return None
 
     def predicate_text(self, pred: Any, config: GraphConfiguration) -> str:
-        pred_term = self.backend.term(pred)
+        pred_term = self.reader.term(pred)
         key = (pred_term.value, id(config))
         cached = self._predicate_cache.get(key)
         if cached is not None:
@@ -329,13 +325,13 @@ class GraphReader:
         config: GraphConfiguration,
         expansion_level: int = 0,
     ) -> Generator[tuple[int, GraphTerm, GraphTerm, GraphTerm], None, None]:
-        root_term = self.backend.term(root)
+        root_term = self.reader.term(root)
         ignore_predicates = set(config.ignore_predicates or [])
 
         objects_by_predicate: defaultdict[GraphTerm, list[GraphTerm]] = (
             defaultdict(list)
         )
-        for p, o in self.backend.predicate_objects(root_term):
+        for p, o in self.reader.predicate_objects(root_term):
             if p.value in ignore_predicates:
                 continue
             objects_by_predicate[p].append(o)
@@ -364,7 +360,7 @@ class GraphReader:
         config: GraphConfiguration,
     ) -> str | None:
         values = []
-        for obj in self.backend.objects(root, predicate_iri):
+        for obj in self.reader.objects(root, predicate_iri):
             if obj.kind == "bnode":
                 continue
             label = self.display_label(obj, config, use_target_template=False)
@@ -416,7 +412,7 @@ class GraphReader:
     ) -> LabelProfileConfiguration | None:
         if self.config is None or not self.config.label_profiles:
             return None
-        for type_iri in self.backend.types(node):
+        for type_iri in self.reader.types(node):
             profile = self.config.label_profile_for_type(type_iri)
             if profile is not None:
                 return profile
@@ -428,7 +424,7 @@ class GraphReader:
         config: GraphConfiguration,
         use_target_template: bool = True,
     ) -> str:
-        root_term = self.backend.term(root)
+        root_term = self.reader.term(root)
 
         if self.config is not None:
             profile = None
@@ -459,7 +455,7 @@ class GraphReader:
         config: GraphConfiguration,
         label: str | None = None,
     ) -> str:
-        root_term = self.backend.term(root)
+        root_term = self.reader.term(root)
         lines: list[str] = []
 
         if label is None:
@@ -491,7 +487,8 @@ def materialize_records(
     limit: int | None = None,
     max_iris_per_record: int = 10,
 ) -> list[OutputRecord]:
-    reader = GraphReader(graph, config)
+    reader = graph_reader(graph)
+    textifier = Textifier(reader, config)
     target_configs = (
         [config.for_target(target)] if target else list(config.iter_targets())
     )
@@ -506,8 +503,10 @@ def materialize_records(
             count += 1
 
             node = GraphTerm("iri", iri)
-            label = reader.display_label(node, target_config)
-            text = reader.build_embedding_text(node, target_config, label=label)
+            label = textifier.display_label(node, target_config)
+            text = textifier.build_embedding_text(
+                node, target_config, label=label
+            )
             digest = text_digest(text)
 
             record = by_digest.get(digest)

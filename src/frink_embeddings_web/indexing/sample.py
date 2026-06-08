@@ -8,8 +8,9 @@ from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import RDF
 
 from .index import (
-    GraphReader,
     OutputRecord,
+    Textifier,
+    graph_reader,
     materialize_records,
 )
 from .models import GraphConfiguration, MaterializationConfiguration
@@ -82,7 +83,7 @@ def sample_types(
             samples[type_iri].append(str(subject))
 
     config = GraphConfiguration()
-    reader = GraphReader(graph)
+    textifier = Textifier(graph_reader(graph))
     records: list[TypeSampleRecord] = []
 
     for type_iri in sorted(counts):
@@ -151,7 +152,7 @@ def sample_types(
                     samples_for_pred.append(
                         ObjectSample(
                             iri=str(obj),
-                            label=reader.best_label(obj, config),
+                            label=textifier.best_label(obj, config),
                             types=sorted(object_type_iris),
                         )
                     )
@@ -159,7 +160,7 @@ def sample_types(
         literal_predicates = [
             LiteralPredicateSample(
                 predicate=pred_iri,
-                label=reader.predicate_text(URIRef(pred_iri), config),
+                label=textifier.predicate_text(URIRef(pred_iri), config),
                 count=count,
                 values=predicate_values[pred_iri],
             )
@@ -172,12 +173,12 @@ def sample_types(
         object_predicates = [
             ObjectPredicateSample(
                 predicate=pred_iri,
-                label=reader.predicate_text(URIRef(pred_iri), config),
+                label=textifier.predicate_text(URIRef(pred_iri), config),
                 count=count,
                 object_types=[
                     ObjectTypeSample(
                         type=object_type_iri,
-                        label=reader.best_label(
+                        label=textifier.best_label(
                             URIRef(object_type_iri),
                             config,
                             use_fallback=True,
@@ -192,7 +193,7 @@ def sample_types(
                 object_label_predicates=[
                     LiteralPredicateSample(
                         predicate=label_pred_iri,
-                        label=reader.predicate_text(
+                        label=textifier.predicate_text(
                             URIRef(label_pred_iri),
                             config,
                         ),
@@ -215,7 +216,7 @@ def sample_types(
         records.append(
             TypeSampleRecord(
                 type=type_iri,
-                label=reader.best_label(
+                label=textifier.best_label(
                     URIRef(type_iri),
                     config,
                     use_fallback=True,

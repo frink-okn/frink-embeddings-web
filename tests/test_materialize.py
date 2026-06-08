@@ -4,9 +4,10 @@ from rdflib import Graph, URIRef
 from rdflib.namespace import RDF, RDFS
 
 from frink_embeddings_web.indexing.index import (
-    GraphReader,
+    Textifier,
     effective_label_predicates,
     fallback_label,
+    graph_reader,
     humanize,
     materialize_records,
     stable_score,
@@ -124,7 +125,7 @@ def test_walk_graph_uses_ignore_predicates_limit_and_depth():
         expansion_limit=1,
     )
 
-    triples = list(GraphReader(graph).walk(root, config))
+    triples = list(Textifier(graph_reader(graph)).walk(root, config))
     selected_objects = sorted(
         objects,
         key=lambda o: stable_score(root, pred, o),
@@ -146,7 +147,7 @@ def test_build_embedding_text_formats_labels_literals_and_nested_nodes():
     root = URIRef("http://example.com/root")
     config = GraphConfiguration(expansion_limit=1)
 
-    text = GraphReader(graph).build_embedding_text(root, config)
+    text = Textifier(graph_reader(graph)).build_embedding_text(root, config)
 
     assert "label: Root label" in text
     assert "related predicate: Related label" in text
@@ -174,7 +175,7 @@ def test_display_label_uses_target_template_fields_with_fallback():
     target = config.for_target("thing")
 
     assert (
-        GraphReader(graph, config).display_label(root, target)
+        Textifier(graph_reader(graph), config).display_label(root, target)
         == "Root label: 42"
     )
 
@@ -203,7 +204,7 @@ def test_display_label_uses_label_profile_for_non_target_nodes():
     graph.add((related, RDF.type, URIRef("http://example.com/Related")))
 
     assert (
-        GraphReader(graph, config).display_label(
+        Textifier(graph_reader(graph), config).display_label(
             related, config.for_target("thing")
         )
         == "profile: Related label"
