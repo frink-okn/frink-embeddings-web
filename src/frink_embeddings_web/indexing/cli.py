@@ -1,8 +1,12 @@
+import sys
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, NoReturn
 
 import typer
+from loguru import logger
 
+from ..config import AppContext
+from ..core.errors import friendly_error
 from .index import (
     load_graph,
     materialize_records,
@@ -18,6 +22,7 @@ from .sample import (
     write_sample_types_json,
     write_sample_types_text,
 )
+from .upload import upload_files
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
@@ -25,6 +30,12 @@ app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 @app.callback()
 def main():
     pass
+
+
+def _fail(message: str) -> NoReturn:
+    """Print an error to stderr and exit with a nonzero status."""
+    typer.echo(message, err=True)
+    raise typer.Exit(code=1)
 
 
 @app.command()
@@ -170,6 +181,112 @@ def sample_targets_cmd(
         write_sample_targets_json(records, output)
 
     typer.echo(f"Wrote {len(records)} target samples to {output}")
+
+
+@app.command()
+def upload(
+    inputs: Annotated[
+        list[Path],
+        typer.Argument(
+            help=(
+                "JSONL embedding-record files to upload. Each file is one "
+                "graph, named by its stem (e.g. my-graph.jsonl -> my-graph)."
+            ),
+        ),
+    ],
+    batch_size: Annotated[
+        int,
+        typer.Option(
+            "--batch-size",
+            min=1,
+            help="Number of records to embed at once.",
+        ),
+    ] = 256,
+    upload_batch_size: Annotated[
+        int,
+        typer.Option(
+            "--upload-batch-size",
+            min=1,
+            help="Number of embedded points to upsert at once.",
+        ),
+    ] = 256,
+    limit: Annotated[
+        int | None,
+        typer.Option(
+            "--limit",
+            min=1,
+            help="Maximum records to upload per input file.",
+        ),
+    ] = None,
+    create_collection: Annotated[
+        bool,
+        typer.Option(
+            "--create-collection/--no-create-collection",
+            help="Create the configured collection if it does not exist.",
+        ),
+    ] = False,
+    payload_indexes: Annotated[
+        bool,
+        typer.Option(
+            "--payload-indexes/--no-payload-indexes",
+            help="Create keyword payload indexes for graph and iri.",
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Read and embed records without writing to Qdrant.",
+        ),
+    ] = False,
+    progress: Annotated[
+        bool,
+        typer.Option(
+            "--progress/--no-progress",
+            help="Show a per-graph record progress bar.",
+        ),
+    ] = True,
+    log_level: Annotated[
+        str,
+        typer.Option("--log-level", help="Log level."),
+    ] = "INFO",
+    log_every: Annotated[
+        int,
+        typer.Option(
+            "--log-every",
+            min=1,
+            help="Log an upload progress line after this many records.",
+        ),
+    ] = 10_000,
+):
+    """Embed materialized JSONL records and upsert them into Qdrant."""
+    logger.remove()
+    logger.add(sys.stderr, level=log_level.upper())
+
+    ctx = AppContext.from_env()
+    try:
+        total = upload_files(
+            ctx,
+            [path.resolve() for path in inputs],
+            batch_size=batch_size,
+            upload_batch_size=upload_batch_size,
+            limit=limit,
+            create_collection=create_collection,
+            payload_indexes=payload_indexes,
+            dry_run=dry_run,
+            progress_enabled=progress,
+            log_every=log_every,
+        )
+    except FileNotFoundError as e:
+        _fail(f"Input file not found: {e}")
+    except Exception as e:
+        _fail(friendly_error(e))
+
+    action = "Prepared" if dry_run else "Uploaded"
+    typer.echo(
+        f"{action} {total} points into {ctx.settings.qdrant_collection} "
+        f"at {ctx.settings.qdrant_location}"
+    )
 
 
 if __name__ == "__main__":

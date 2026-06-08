@@ -246,6 +246,7 @@ dependencies = [
     { name = "qdrant-client" },
     { name = "rdflib" },
     { name = "rdflib-hdt" },
+    { name = "tqdm" },
     { name = "typer" },
 ]
 
@@ -272,6 +273,7 @@ requires-dist = [
     { name = "qdrant-client", specifier = ">=1.17.0" },
     { name = "rdflib", specifier = ">=7.5.0" },
     { name = "rdflib-hdt", git = "https://github.com/RDFLib/rdflib-hdt.git?rev=5b0a028fbd71e95befeadcf2fecaddb9542578ed" },
+    { name = "tqdm", specifier = ">=4.67.3" },
     { name = "typer", specifier = ">=0.21.1" },
 ]
 

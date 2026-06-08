@@ -10,11 +10,14 @@ if TYPE_CHECKING:
 class Embedder(Protocol):
     """Turns text into a query/index vector.
 
-    Shared seam between the query path (this branch) and the embedding/upload
-    pipeline, so both produce vectors with the same model.
+    Shared seam between the query path and the embedding/upload pipeline, so
+    both produce vectors with the same model. `embed_many` is the batch entry
+    point the bulk uploader uses; `embed` is the single-text convenience.
     """
 
     def embed(self, text: str) -> np.ndarray: ...
+
+    def embed_many(self, texts: list[str]) -> list[np.ndarray]: ...
 
 
 class FastEmbedEmbedder:
@@ -24,8 +27,13 @@ class FastEmbedEmbedder:
         self._model = TextEmbedding(model_name=model_name)
 
     def embed(self, text: str) -> np.ndarray:
-        vector = next(iter(self._model.embed([text])))
-        return np.asarray(vector, dtype=np.float32)
+        return self.embed_many([text])[0]
+
+    def embed_many(self, texts: list[str]) -> list[np.ndarray]:
+        return [
+            np.asarray(vector, dtype=np.float32)
+            for vector in self._model.embed(texts)
+        ]
 
 
 def make_embedder(settings: "AppSettings") -> Embedder:
