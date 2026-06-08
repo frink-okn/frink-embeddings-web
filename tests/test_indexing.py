@@ -6,8 +6,12 @@ from frink_embeddings_web.indexing.models import (
     MaterializationConfiguration,
     TargetConfiguration,
 )
-from frink_embeddings_web.indexing.output import write_jsonl
-from frink_embeddings_web.indexing.textify import materialize_records
+from frink_embeddings_web.indexing.output import WorkerRecord, write_jsonl
+from frink_embeddings_web.indexing.textify import (
+    finish_records,
+    materialize_records,
+    merge_worker_record,
+)
 from frink_embeddings_web.indexing.upload import (
     iter_jsonl,
     payload_for_record,
@@ -49,6 +53,40 @@ def test_identical_text_groups_with_iri_count():
     assert len(records) == 1
     record = records[0]
     assert record.iris == ["http://example.org/a", "http://example.org/b"]
+    assert record.iri_count == 2
+
+
+def _wr(iri: str, text: str = "same text") -> WorkerRecord:
+    # digest only needs to match for records that should group together; here
+    # everything shares one digest so they merge into a single OutputRecord.
+    return WorkerRecord(iri=iri, label="L", embedding_text=text, digest="d")
+
+
+def test_merge_keeps_smallest_n_iris_regardless_of_arrival_order():
+    # Arrival order is scrambled (as it would be under parallel workers); the
+    # kept set must be the lexicographically-smallest N, deterministically.
+    forward: dict = {}
+    for iri in ["a", "b", "c", "d", "e"]:
+        merge_worker_record(forward, _wr(iri), max_iris_per_record=3)
+
+    shuffled: dict = {}
+    for iri in ["e", "c", "a", "d", "b"]:
+        merge_worker_record(shuffled, _wr(iri), max_iris_per_record=3)
+
+    (a,) = finish_records(forward)
+    (b,) = finish_records(shuffled)
+    assert a.iris == ["a", "b", "c"]  # smallest 3, sorted
+    assert a.iris == b.iris  # order-independent
+    assert a.iri_count == 5  # true total preserved
+    assert b.iri_count == 5
+
+
+def test_merge_dedupes_repeated_iri():
+    by_digest: dict = {}
+    for iri in ["a", "a", "b"]:
+        merge_worker_record(by_digest, _wr(iri), max_iris_per_record=10)
+    (record,) = finish_records(by_digest)
+    assert record.iris == ["a", "b"]
     assert record.iri_count == 2
 
 

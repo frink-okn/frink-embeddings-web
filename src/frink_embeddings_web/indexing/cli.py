@@ -9,6 +9,7 @@ from ..config import AppContext
 from ..core.errors import friendly_error
 from .models import MaterializationConfiguration
 from .output import write_json, write_jsonl, write_text
+from .parallel import materialize_records_to_path
 from .reader import load_graph
 from .sample import (
     sample_targets,
@@ -86,28 +87,70 @@ def textify(
             help="Maximum source IRIs to keep for each grouped output record.",
         ),
     ] = 10,
+    jobs: Annotated[
+        int,
+        typer.Option(
+            "--jobs",
+            min=0,
+            help=(
+                "Worker processes for materialization. 1 = single process; "
+                "0 = one per CPU. Parallel runs stream output via temp shards, "
+                "bounding memory; their record order differs from --jobs 1."
+            ),
+        ),
+    ] = 1,
+    chunk_size: Annotated[
+        int,
+        typer.Option(
+            "--chunk-size",
+            min=1,
+            help="Root IRIs handed to each worker task (with --jobs != 1).",
+        ),
+    ] = 1000,
+    progress: Annotated[
+        bool,
+        typer.Option("--progress", help="Show a progress bar."),
+    ] = False,
 ):
     if text and jsonl:
         raise typer.BadParameter("--text and --jsonl cannot be used together")
 
-    graph = load_graph(hdt_file)
     config = MaterializationConfiguration.from_toml(config_toml)
-    records = materialize_records(
-        graph,
-        config,
-        target=target,
-        limit=limit,
-        max_iris_per_record=max_iris_per_record,
-    )
 
-    if text:
-        write_text(records, output)
-    elif jsonl:
-        write_jsonl(records, output)
+    if jobs == 1:
+        graph = load_graph(hdt_file)
+        records = materialize_records(
+            graph,
+            config,
+            target=target,
+            limit=limit,
+            max_iris_per_record=max_iris_per_record,
+            progress=progress,
+        )
+        count = len(records)
+        if text:
+            write_text(records, output)
+        elif jsonl:
+            write_jsonl(records, output)
+        else:
+            write_json(records, output)
     else:
-        write_json(records, output)
+        count = materialize_records_to_path(
+            hdt_file,
+            config_toml,
+            config,
+            output,
+            text=text,
+            jsonl=jsonl,
+            target=target,
+            limit=limit,
+            jobs=jobs,
+            chunk_size=chunk_size,
+            progress=progress,
+            max_iris_per_record=max_iris_per_record,
+        )
 
-    typer.echo(f"Wrote {len(records)} records to {output}")
+    typer.echo(f"Wrote {count} records to {output}")
 
 
 @app.command("sample-types")

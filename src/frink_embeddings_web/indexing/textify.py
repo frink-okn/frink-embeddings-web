@@ -1,16 +1,19 @@
 import re
 from collections import defaultdict
-from typing import Any, Generator
+from itertools import islice
+from typing import Any, Generator, Iterable
 
 from loguru import logger
 from rdflib import Graph
+from tqdm import tqdm
 
 from .models import (
     GraphConfiguration,
     LabelProfileConfiguration,
     MaterializationConfiguration,
+    ResolvedTargetConfiguration,
 )
-from .output import OutputRecord
+from .output import OutputRecord, WorkerRecord
 from .reader import GraphReader, GraphTerm, graph_reader
 from .text import (
     RDFS_LABEL,
@@ -247,52 +250,62 @@ class Textifier:
 
         return "\n".join(lines)
 
+    def materialize_one(
+        self, iri: str, config: GraphConfiguration
+    ) -> WorkerRecord:
+        node = GraphTerm("iri", iri)
+        label = self.display_label(node, config)
+        text = self.build_embedding_text(node, config, label=label)
+        return WorkerRecord(
+            iri=iri,
+            label=label,
+            embedding_text=text,
+            digest=text_digest(text),
+        )
 
-def materialize_records(
-    graph: "Graph",
-    config: MaterializationConfiguration,
-    target: str | None = None,
-    limit: int | None = None,
+
+# --- grouping -------------------------------------------------------------
+#
+# Many roots can share identical text; they group into one OutputRecord keyed
+# by the text digest. `iris` is capped at `max_iris_per_record` -- we keep the
+# N lexicographically-smallest IRIs (deterministic regardless of the order
+# records arrive, which matters once workers run in parallel) while `iri_count`
+# records the true total.
+
+
+def merge_worker_record(
+    by_digest: dict[str, OutputRecord],
+    record: WorkerRecord,
     max_iris_per_record: int = 10,
-) -> list[OutputRecord]:
-    reader = graph_reader(graph)
-    textifier = Textifier(reader, config)
-    target_configs = (
-        [config.for_target(target)] if target else list(config.iter_targets())
-    )
+) -> None:
+    existing = by_digest.get(record.digest)
+    if existing is None:
+        by_digest[record.digest] = OutputRecord(
+            iris=[record.iri],
+            label=record.label,
+            embedding_text=record.embedding_text,
+            iri_count=1,
+        )
+        return
 
-    by_digest: dict[str, OutputRecord] = {}
+    if record.iri in existing.iris:
+        return
 
-    for target_config in target_configs:
-        count = 0
-        for iri in reader.root_iris(target_config.type):
-            if limit is not None and count >= limit:
-                break
-            count += 1
+    existing.iri_count += 1
+    iris = existing.iris
+    if len(iris) < max_iris_per_record:
+        iris.append(record.iri)
+        iris.sort()
+    elif record.iri < iris[-1]:
+        iris[-1] = record.iri
+        iris.sort()
 
-            node = GraphTerm("iri", iri)
-            label = textifier.display_label(node, target_config)
-            text = textifier.build_embedding_text(
-                node, target_config, label=label
-            )
-            digest = text_digest(text)
 
-            record = by_digest.get(digest)
-            if record is None:
-                by_digest[digest] = OutputRecord(
-                    iris=[iri],
-                    label=label,
-                    embedding_text=text,
-                    iri_count=1,
-                )
-            elif iri not in record.iris:
-                record.iri_count += 1
-                if len(record.iris) < max_iris_per_record:
-                    record.iris.append(iri)
-
-    records = list(by_digest.values())
+def warn_truncated_records(
+    records: Iterable[OutputRecord],
+    max_iris_per_record: int = 10,
+) -> None:
     for record in records:
-        record.iris.sort()
         if record.iri_count > max_iris_per_record:
             logger.warning(
                 "Truncated grouped record IRIs from {} to {} for "
@@ -301,4 +314,47 @@ def materialize_records(
                 len(record.iris),
                 record.embedding_text,
             )
+
+
+def finish_records(by_digest: dict[str, OutputRecord]) -> list[OutputRecord]:
+    records = list(by_digest.values())
     return sorted(records, key=lambda r: (r.embedding_text, r.iris))
+
+
+def target_config_items(
+    config: MaterializationConfiguration, target: str | None = None
+) -> list[tuple[str, ResolvedTargetConfiguration]]:
+    if target:
+        return [(target, config.for_target(target))]
+    return [(name, config.for_target(name)) for name in config.targets]
+
+
+def materialize_records(
+    graph: Graph,
+    config: MaterializationConfiguration,
+    target: str | None = None,
+    limit: int | None = None,
+    max_iris_per_record: int = 10,
+    progress: bool = False,
+) -> list[OutputRecord]:
+    reader = graph_reader(graph)
+    textifier = Textifier(reader, config)
+
+    by_digest: dict[str, OutputRecord] = {}
+
+    for target_name, target_config in target_config_items(config, target):
+        root_iter = reader.root_iris(target_config.type)
+        if limit is not None:
+            root_iter = islice(root_iter, limit)
+        if progress:
+            root_iter = tqdm(root_iter, desc=target_name, unit=" roots")
+        for iri in root_iter:
+            merge_worker_record(
+                by_digest,
+                textifier.materialize_one(iri, target_config),
+                max_iris_per_record=max_iris_per_record,
+            )
+
+    records = finish_records(by_digest)
+    warn_truncated_records(records, max_iris_per_record=max_iris_per_record)
+    return records
