@@ -7,14 +7,10 @@ from loguru import logger
 
 from ..config import AppContext
 from ..core.errors import friendly_error
-from .index import (
-    load_graph,
-    materialize_records,
-    write_json,
-    write_jsonl,
-    write_text,
-)
+from .index import materialize_records
 from .models import MaterializationConfiguration
+from .output import write_json, write_jsonl, write_text
+from .reader import load_graph
 from .sample import (
     sample_targets,
     sample_types,

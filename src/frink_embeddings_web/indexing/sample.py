@@ -7,13 +7,10 @@ from typing import Iterable
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import RDF
 
-from .index import (
-    OutputRecord,
-    Textifier,
-    graph_reader,
-    materialize_records,
-)
+from .index import Textifier, materialize_records
 from .models import GraphConfiguration, MaterializationConfiguration
+from .output import OutputRecord
+from .reader import graph_reader
 
 
 @dataclass
@@ -284,16 +281,14 @@ def write_sample_types_text(
             f.write("literal predicates:\n")
             for pred in record.literal_predicates:
                 f.write(
-                    f"- {pred.label} ({pred.predicate}) "
-                    f"[count={pred.count}]\n"
+                    f"- {pred.label} ({pred.predicate}) [count={pred.count}]\n"
                 )
                 for value in pred.values:
                     f.write(f"  - {value}\n")
             f.write("object predicates:\n")
             for pred in record.object_predicates:
                 f.write(
-                    f"- {pred.label} ({pred.predicate}) "
-                    f"[count={pred.count}]\n"
+                    f"- {pred.label} ({pred.predicate}) [count={pred.count}]\n"
                 )
                 f.write("  object types:\n")
                 for object_type in pred.object_types:

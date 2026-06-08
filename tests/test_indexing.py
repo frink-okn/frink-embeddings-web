@@ -2,14 +2,12 @@ from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import RDF
 
 from frink_embeddings_web.core.results import summarize_point
-from frink_embeddings_web.indexing.index import (
-    materialize_records,
-    write_jsonl,
-)
+from frink_embeddings_web.indexing.index import materialize_records
 from frink_embeddings_web.indexing.models import (
     MaterializationConfiguration,
     TargetConfiguration,
 )
+from frink_embeddings_web.indexing.output import write_jsonl
 from frink_embeddings_web.indexing.upload import (
     iter_jsonl,
     payload_for_record,

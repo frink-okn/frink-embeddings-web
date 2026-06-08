@@ -5,18 +5,20 @@ from rdflib.namespace import RDF, RDFS
 
 from frink_embeddings_web.indexing.index import (
     Textifier,
-    effective_label_predicates,
-    fallback_label,
-    graph_reader,
-    humanize,
     materialize_records,
-    stable_score,
 )
 from frink_embeddings_web.indexing.models import (
     GraphConfiguration,
     MaterializationConfiguration,
 )
+from frink_embeddings_web.indexing.reader import graph_reader
 from frink_embeddings_web.indexing.sample import sample_targets, sample_types
+from frink_embeddings_web.indexing.text import (
+    effective_label_predicates,
+    fallback_label,
+    humanize,
+    stable_score,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
