@@ -2,9 +2,9 @@ import pytest
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
 
-from frink_embeddings_web.config.context import AppContext
-from frink_embeddings_web.config.settings import AppSettings
-from frink_embeddings_web.core.embedding import FastEmbedEmbedder
+from okn_embeddings.config.context import AppContext
+from okn_embeddings.config.settings import AppSettings
+from okn_embeddings.core.embedding import FastEmbedEmbedder
 
 _COLLECTION = "test-graph"
 _MODEL = "sentence-transformers/all-MiniLM-L6-v2"

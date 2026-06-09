@@ -85,7 +85,7 @@ def _summary_from_queries(query_contexts, ks: tuple[int, ...]):
 
 def render_report(input_json: Path):
     env = Environment(
-        loader=PackageLoader("frink_embeddings_web"),
+        loader=PackageLoader("okn_embeddings"),
         autoescape=False,
         trim_blocks=True,
         lstrip_blocks=True,

@@ -330,6 +330,6 @@ document.addEventListener("click", (e) => {
   }
 });
 
-window.Frink = {
+window.OKN = {
   updateQueryParams,
 }

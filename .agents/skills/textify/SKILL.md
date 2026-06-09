@@ -1,29 +1,29 @@
 ---
-name: frink-rdf-textify
+name: okn-rdf-textify
 description: Convert RDF nodes into textual representations for the purpose of creating text embeddings
 ---
 
-Use this skill when asked to design and evaluate an indexing configuration to be used with the `frink-indexing textify` command to create text embeddings from RDF graphs.
+Use this skill when asked to design and evaluate an indexing configuration to be used with the `okn-indexing textify` command to create text embeddings from RDF graphs.
 
 The overall purpose is to generate textual representations of selected RDF nodes so they can be embedded with a text embedding model. RDF graphs are usually too broad and heterogeneous to embed every node directly. A good indexing configuration chooses which RDF types should become embedding documents, how those documents should be labeled, which graph edges should contribute text, and which noisy or structural graph regions should be skipped.
 
-At a high level, the `frink-indexing` textification algorithm starts from configured RDF types, finds subject IRIs of those types, assigns each root node a human-readable label, walks selected outgoing graph edges, and turns predicate/object pairs into compact text lines. Object IRIs are represented by derived labels rather than full nested graph dumps. Label profiles can be defined separately from textification targets, so helper classes can provide good labels when they appear during graph walking without becoming standalone embedding documents. The output records group equivalent text under one record, preserve source IRIs, and include both a display label and embedding text.
+At a high level, the `okn-indexing` textification algorithm starts from configured RDF types, finds subject IRIs of those types, assigns each root node a human-readable label, walks selected outgoing graph edges, and turns predicate/object pairs into compact text lines. Object IRIs are represented by derived labels rather than full nested graph dumps. Label profiles can be defined separately from textification targets, so helper classes can provide good labels when they appear during graph walking without becoming standalone embedding documents. The output records group equivalent text under one record, preserve source IRIs, and include both a display label and embedding text.
 
-The end product is a concise, evidence-backed `config.toml` for `frink-indexing textify`, plus a report explaining the choices.
+The end product is a concise, evidence-backed `config.toml` for `okn-indexing textify`, plus a report explaining the choices.
 
 ## CLI Utilities
 
-The `frink-indexing` CLI is used to explore an HDT graph, evaluate candidate configurations, and produce final textification records. You may not have a virtual environment activated, so prefix any CLI invocation of this or other Python commands with `uv run`.
+The `okn-indexing` CLI is used to explore an HDT graph, evaluate candidate configurations, and produce final textification records. You may not have a virtual environment activated, so prefix any CLI invocation of this or other Python commands with `uv run`.
 
-- `frink-indexing sample-types`: graph exploration. Use this before drafting a config. It scans RDF types, counts instances, samples subject IRIs, reports direct literal predicates, and reports outgoing object predicates with object type and label evidence. This helps identify good root targets, possible label predicates or label profiles, and noisy predicates to ignore.
-- `frink-indexing sample-targets`: config evaluation. Use this after drafting or editing a config. It runs the configured target definitions with a small per-target limit and writes representative sample documents. This is the main tool for judging whether the config produces compact, readable, semantically useful embedding text.
-- `frink-indexing textify`: final or bounded materialization. During config design, run it only with a small `--limit` to inspect output shape. Do not run the full unbounded textification/materialization process unless the user explicitly approves it after reviewing the report.
+- `okn-indexing sample-types`: graph exploration. Use this before drafting a config. It scans RDF types, counts instances, samples subject IRIs, reports direct literal predicates, and reports outgoing object predicates with object type and label evidence. This helps identify good root targets, possible label predicates or label profiles, and noisy predicates to ignore.
+- `okn-indexing sample-targets`: config evaluation. Use this after drafting or editing a config. It runs the configured target definitions with a small per-target limit and writes representative sample documents. This is the main tool for judging whether the config produces compact, readable, semantically useful embedding text.
+- `okn-indexing textify`: final or bounded materialization. During config design, run it only with a small `--limit` to inspect output shape. Do not run the full unbounded textification/materialization process unless the user explicitly approves it after reviewing the report.
 
 ## Workflow
 
 1. If not provided, ask for a graph to run this skill against. Currently the library only supports HDT files.
 2. Create a working folder in the same directory as the graph called `${GRAPH_NAME}-textify`.
-3. Run `frink-indexing sample-types` on the HDT graph to understand graph shape.
+3. Run `okn-indexing sample-types` on the HDT graph to understand graph shape.
     - Use small per-type limits first, for example `--limit 2 --values-limit 2`.
     - Prefer JSON for machine review and text for human inspection.
 4. Identify candidate root types.
@@ -46,7 +46,7 @@ The `frink-indexing` CLI is used to explore an HDT graph, evaluate candidate con
     - Preserve `rdf:type` in embedding text by default because it is usually useful signal. Ignore type only when it is clearly unhelpful or misleading, such as ontology meta-types like `owl:Class`.
     - Set conservative `predicate_limit` and `expansion_limit`; prefer concise embedding text for `all-MiniLM-L6-v2`.
     - Add `ignore_predicates` for noisy, huge, structural, or low-semantic-value predicates.
-7. Run `frink-indexing sample-targets` and, when useful, `frink-indexing textify` with small `--limit` values.
+7. Run `okn-indexing sample-targets` and, when useful, `okn-indexing textify` with small `--limit` values.
 8. Iterate until the sampled embedding text is compact, readable, and semantically useful.
 9. Write a report in the folder with the rest of the output titled `README.md`.
     - commands run.
@@ -63,7 +63,7 @@ The `frink-indexing` CLI is used to explore an HDT graph, evaluate candidate con
     - Then write:
         * a wrap-up assessment that states which representations look strongest, which look weak or noisy, which targets should be kept or reconsidered, and the highest-value next iterations.
         * remaining uncertainties or recommended next iterations.
-10. Stop after creating the report. Ask the user whether to run full textification/materialization. Do not run unbounded `frink-indexing textify` automatically.
+10. Stop after creating the report. Ask the user whether to run full textification/materialization. Do not run unbounded `okn-indexing textify` automatically.
 
 ## Asking for Guidance
 

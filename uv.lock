@@ -226,61 +226,6 @@ wheels = [
 ]
 
 [[package]]
-name = "frink-embeddings-web"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "cachetools" },
-    { name = "fastembed" },
-    { name = "flask" },
-    { name = "gunicorn" },
-    { name = "jinja2" },
-    { name = "loguru" },
-    { name = "numpy" },
-    { name = "pandas" },
-    { name = "pyarrow" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "pyparsing" },
-    { name = "pytest" },
-    { name = "qdrant-client" },
-    { name = "rdflib" },
-    { name = "rdflib-hdt" },
-    { name = "tqdm" },
-    { name = "typer" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "cachetools", specifier = ">=6.2.4" },
-    { name = "fastembed", specifier = ">=0.8.0" },
-    { name = "flask", specifier = ">=3.1.2" },
-    { name = "gunicorn", specifier = ">=23.0.0" },
-    { name = "jinja2", specifier = ">=3.1.6" },
-    { name = "loguru", specifier = ">=0.7.3" },
-    { name = "numpy", specifier = ">=2.3.4" },
-    { name = "pandas", specifier = ">=3.0.1" },
-    { name = "pyarrow", specifier = ">=23.0.1" },
-    { name = "pydantic", specifier = ">=2.11.9" },
-    { name = "pydantic-settings", specifier = ">=2.12.0" },
-    { name = "pyparsing", specifier = "<3.3" },
-    { name = "pytest", specifier = ">=9.0.2" },
-    { name = "qdrant-client", specifier = ">=1.17.0" },
-    { name = "rdflib", specifier = ">=7.5.0" },
-    { name = "rdflib-hdt", git = "https://github.com/RDFLib/rdflib-hdt.git?rev=5b0a028fbd71e95befeadcf2fecaddb9542578ed" },
-    { name = "tqdm", specifier = ">=4.67.3" },
-    { name = "typer", specifier = ">=0.21.1" },
-]
-
-[package.metadata.requires-dev]
-dev = [{ name = "ruff", specifier = ">=0.14.1" }]
-
-[[package]]
 name = "fsspec"
 version = "2026.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -745,6 +690,61 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/42/f3/76534f61f80d74cc9cdf2e570d3d4eeb92c2280a27c39b0aaf471eda7b48/numpy-2.4.3-cp314-cp314t-win_amd64.whl", hash = "sha256:45f003dbdffb997a03da2d1d0cb41fbd24a87507fb41605c0420a3db5bd4667b", size = 12633645, upload-time = "2026-03-09T07:58:30.384Z" },
     { url = "https://files.pythonhosted.org/packages/1f/b6/7c0d4334c15983cec7f92a69e8ce9b1e6f31857e5ee3a413ac424e6bd63d/numpy-2.4.3-cp314-cp314t-win_arm64.whl", hash = "sha256:4d382735cecd7bcf090172489a525cd7d4087bc331f7df9f60ddc9a296cf208e", size = 10565454, upload-time = "2026-03-09T07:58:33.031Z" },
 ]
+
+[[package]]
+name = "okn-embeddings"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "cachetools" },
+    { name = "fastembed" },
+    { name = "flask" },
+    { name = "gunicorn" },
+    { name = "jinja2" },
+    { name = "loguru" },
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "pyarrow" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pyparsing" },
+    { name = "pytest" },
+    { name = "qdrant-client" },
+    { name = "rdflib" },
+    { name = "rdflib-hdt" },
+    { name = "tqdm" },
+    { name = "typer" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cachetools", specifier = ">=6.2.4" },
+    { name = "fastembed", specifier = ">=0.8.0" },
+    { name = "flask", specifier = ">=3.1.2" },
+    { name = "gunicorn", specifier = ">=23.0.0" },
+    { name = "jinja2", specifier = ">=3.1.6" },
+    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "numpy", specifier = ">=2.3.4" },
+    { name = "pandas", specifier = ">=3.0.1" },
+    { name = "pyarrow", specifier = ">=23.0.1" },
+    { name = "pydantic", specifier = ">=2.11.9" },
+    { name = "pydantic-settings", specifier = ">=2.12.0" },
+    { name = "pyparsing", specifier = "<3.3" },
+    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "qdrant-client", specifier = ">=1.17.0" },
+    { name = "rdflib", specifier = ">=7.5.0" },
+    { name = "rdflib-hdt", git = "https://github.com/RDFLib/rdflib-hdt.git?rev=5b0a028fbd71e95befeadcf2fecaddb9542578ed" },
+    { name = "tqdm", specifier = ">=4.67.3" },
+    { name = "typer", specifier = ">=0.21.1" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "ruff", specifier = ">=0.14.1" }]
 
 [[package]]
 name = "onnxruntime"

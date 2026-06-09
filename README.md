@@ -1,6 +1,6 @@
-# Frink Embeddings Web Application
+# OKN Embeddings
 
-A Python application to serve HTTP resources to explore embeddings generated with [frink-okn/frink-embeddings](https://github.com/frink-okn/frink-embeddings).
+A set of Python utilities to create, upload, browse, and search text embeddings for the OKN graph.
 
 Requirements
 - Python 3.12+
@@ -28,29 +28,29 @@ make dev
 
 # Command-line search
 
-The `frink-search` CLI queries the same embeddings as the web app (it reads the same
+The `okn-search` CLI queries the same embeddings as the web app (it reads the same
 `QDRANT_*` / `MODEL_NAME` configuration):
 
 ```
 # Similarity search by text (table output)
-uv run frink-search search "diabetes" --limit 5
+uv run okn-search search "diabetes" --limit 5
 
 # Search by an existing node's IRI ("find similar")
-uv run frink-search search https://example.org/node/123 --type node
+uv run okn-search search https://example.org/node/123 --type node
 
 # Restrict to (or exclude) specific graphs; JSON output for scripting
-uv run frink-search search "diabetes" -g GraphA -g GraphB --json
-uv run frink-search search "diabetes" -x GraphA
+uv run okn-search search "diabetes" -g GraphA -g GraphB --json
+uv run okn-search search "diabetes" -x GraphA
 
 # Survey: top matches *per graph* across every graph (or a -g/-x subset)
-uv run frink-search survey "diabetes" --limit 3
-uv run frink-search survey "diabetes" -g GraphA -g GraphB
+uv run okn-search survey "diabetes" --limit 3
+uv run okn-search survey "diabetes" -g GraphA -g GraphB
 
 # List the graphs in the collection and their point counts
-uv run frink-search list-graphs --sort count
+uv run okn-search list-graphs --sort count
 ```
 
-Run `uv run frink-search --help` (or `... search --help`) for all options.
+Run `uv run okn-search --help` (or `... search --help`) for all options.
 
 # Building a docker image
 
@@ -66,5 +66,5 @@ To test your image, run:
 make docker-run
 ```
 
-By default, this image is called `frink-web`. Change the name by setting the
+By default, this image is called `okn-embeddings`. Change the name by setting the
 environment variable `DOCKER_NAME`.

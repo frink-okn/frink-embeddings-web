@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Frink Embeddings Query</title>
+  <title>OKN Embeddings Query</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -20,13 +20,13 @@
   <div class="app">
     <header class="app-header">
       <div class="brand">
-        <div class="brand-title">FRINK</div>
+        <div class="brand-title">OKN</div>
         <div class="brand-subtitle">Embeddings Query</div>
       </div>
     </header>
 
     <main class="app-main">
-      <h1 class="sr-only">Frink Embeddings Query</h1>
+      <h1 class="sr-only">OKN Embeddings Query</h1>
 
       <form
         class="query-form"
@@ -34,7 +34,7 @@
         hx-target="#results"
         hx-target-error="#errors"
         hx-disabled-elt=".submit-req"
-        hx-on:htmx-config-request="Frink.updateQueryParams()"
+        hx-on:htmx-config-request="OKN.updateQueryParams()"
       >
         <div class="page-layout">
           <aside class="card graphs-panel" aria-label="Graphs">
@@ -126,7 +126,7 @@
                       hx-disabled-elt=".submit-req"
                       hx-include=".query-form"
                       hx-indicator=".query-form"
-                      hx-on:htmx-config-request="Frink.updateQueryParams()"
+                      hx-on:htmx-config-request="OKN.updateQueryParams()"
                       hx-trigger="change"
                       hx-vals='{"offset": 0}'
                     >
@@ -148,7 +148,7 @@
 
     <footer class="app-footer">
       <div class="footer-inner">
-        <a href="https://github.com/frink-okn/frink-embeddings-web" target="_blank" rel="noreferrer">Source code</a>
+        <a href="https://github.com/frink-okn/okn-embeddings" target="_blank" rel="noreferrer">Source code</a>
         <span class="footer-sep">•</span>
         <a href="https://qdrant.tech/" target="_blank" rel="noreferrer">Powered by Qdrant</a>
       </div>
@@ -156,7 +156,7 @@
 
     <div id="actions-menu" class="actions-menu" hidden>
       <a class="actions-menu-item actions-menu-link" id="actions-external" target="_blank" rel="noreferrer">
-        View in FRINK index
+        View in OKN index
       </a>
       <button type="button" class="actions-menu-item actions-menu-btn" data-action="similar">
         Find similar terms

@@ -2,18 +2,18 @@ from qdrant_client.models import ScoredPoint
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import RDF
 
-from frink_embeddings_web.core.results import summarize_point
-from frink_embeddings_web.indexing.models import (
+from okn_embeddings.core.results import summarize_point
+from okn_embeddings.indexing.models import (
     MaterializationConfiguration,
     TargetConfiguration,
 )
-from frink_embeddings_web.indexing.output import WorkerRecord, write_jsonl
-from frink_embeddings_web.indexing.textify import (
+from okn_embeddings.indexing.output import WorkerRecord, write_jsonl
+from okn_embeddings.indexing.textify import (
     finish_records,
     materialize_records,
     merge_worker_record,
 )
-from frink_embeddings_web.indexing.upload import (
+from okn_embeddings.indexing.upload import (
     iter_jsonl,
     payload_for_record,
 )

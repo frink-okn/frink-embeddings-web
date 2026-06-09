@@ -2,7 +2,7 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# This file is src/frink_embeddings_web/config/settings.py, so the repo root
+# This file is src/okn_embeddings/config/settings.py, so the repo root
 # (where default.env / .env live) is four levels up.
 PROJECT_ROOT = Path(__file__).parents[3]
 DEFAULT_ENV = PROJECT_ROOT / "default.env"

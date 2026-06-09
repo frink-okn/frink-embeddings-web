@@ -153,7 +153,7 @@ def materialize_records_to_path(
     worker_count = multiprocessing.cpu_count() if jobs == 0 else jobs
 
     output_count = 0
-    with TemporaryDirectory(prefix="frink-textify-") as temp_name:
+    with TemporaryDirectory(prefix="okn-textify-") as temp_name:
         temp_dir = Path(temp_name)
         with multiprocessing.Pool(
             processes=worker_count,

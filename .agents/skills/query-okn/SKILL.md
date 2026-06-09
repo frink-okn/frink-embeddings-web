@@ -22,12 +22,12 @@ Treat embedding search as a fuzzy entry point, not a source of truth.
 
 ## CLI Utilities
 
-You have access to several utilities for querying text embeddings from the OKN knowledge graph. These are all available under the `frink-search` command line utility, which you will run using `uv run frink-search`. Pass `--json` to any command so the output is machine-readable.
+You have access to several utilities for querying text embeddings from the OKN knowledge graph. These are all available under the `okn-search` command line utility, which you will run using `uv run okn-search`. Pass `--json` to any command so the output is machine-readable.
 
 ### Search
 
 ```
-uv run frink-search search <TERM> [options]
+uv run okn-search search <TERM> [options]
 ```
 
 Returns the closest embedding matches across all graphs (or a chosen subset), best match first.
@@ -41,7 +41,7 @@ Returns the closest embedding matches across all graphs (or a chosen subset), be
 ### Survey
 
 ```
-uv run frink-search survey <TERM> [options]
+uv run okn-search survey <TERM> [options]
 ```
 
 Like `search`, but queries every graph independently and returns the top matches *per graph* — so you can see where across the federation a concept appears. Accepts the same `-t/-g/-x/--show-repr/--json` options; here `-l, --limit <N>` is the number of results **per graph** (default 5). JSON output is an array of `{ "graph": ..., "results": [ ... ] }`, ordered with the best-matching graphs first.
@@ -49,7 +49,7 @@ Like `search`, but queries every graph independently and returns the top matches
 ### List graphs
 
 ```
-uv run frink-search list-graphs [--sort name|count] [--json]
+uv run okn-search list-graphs [--sort name|count] [--json]
 ```
 
 Lists the graphs in the collection and how many embeddings each contains. Useful to see the universe of available graphs before narrowing with `-g` / `-x`.

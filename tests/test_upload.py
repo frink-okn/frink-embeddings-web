@@ -4,10 +4,10 @@ import numpy as np
 import pytest
 from qdrant_client.models import ScoredPoint
 
-from frink_embeddings_web.config.context import AppContext
-from frink_embeddings_web.core.embedding import FastEmbedEmbedder
-from frink_embeddings_web.core.results import summarize_point
-from frink_embeddings_web.indexing.upload import (
+from okn_embeddings.config.context import AppContext
+from okn_embeddings.core.embedding import FastEmbedEmbedder
+from okn_embeddings.core.results import summarize_point
+from okn_embeddings.indexing.upload import (
     chunks,
     iter_jsonl,
     payload_for_record,
