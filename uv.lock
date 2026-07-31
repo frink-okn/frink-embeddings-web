@@ -703,12 +703,9 @@ dependencies = [
     { name = "jinja2" },
     { name = "loguru" },
     { name = "numpy" },
-    { name = "pandas" },
-    { name = "pyarrow" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pyparsing" },
-    { name = "pytest" },
     { name = "qdrant-client" },
     { name = "rdflib" },
     { name = "rdflib-hdt" },
@@ -718,7 +715,12 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "pytest" },
     { name = "ruff" },
+]
+evaluation = [
+    { name = "pandas" },
+    { name = "pyarrow" },
 ]
 
 [package.metadata]
@@ -730,12 +732,9 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "numpy", specifier = ">=2.3.4" },
-    { name = "pandas", specifier = ">=3.0.1" },
-    { name = "pyarrow", specifier = ">=23.0.1" },
     { name = "pydantic", specifier = ">=2.11.9" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
     { name = "pyparsing", specifier = "<3.3" },
-    { name = "pytest", specifier = ">=9.0.2" },
     { name = "qdrant-client", specifier = ">=1.17.0" },
     { name = "rdflib", specifier = ">=7.5.0" },
     { name = "rdflib-hdt", git = "https://github.com/RDFLib/rdflib-hdt.git?rev=5b0a028fbd71e95befeadcf2fecaddb9542578ed" },
@@ -744,7 +743,14 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "ruff", specifier = ">=0.14.1" }]
+dev = [
+    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "ruff", specifier = ">=0.14.1" },
+]
+evaluation = [
+    { name = "pandas", specifier = ">=3.0.1" },
+    { name = "pyarrow", specifier = ">=23.0.1" },
+]
 
 [[package]]
 name = "onnxruntime"

@@ -16,12 +16,9 @@ dependencies = [
     "jinja2>=3.1.6",
     "loguru>=0.7.3",
     "numpy>=2.3.4",
-    "pandas>=3.0.1",
-    "pyarrow>=23.0.1",
     "pydantic>=2.11.9",
     "pydantic-settings>=2.12.0",
     "pyparsing<3.3",
-    "pytest>=9.0.2",
     "qdrant-client>=1.17.0",
     "rdflib>=7.5.0",
     "rdflib-hdt>=3.2",
@@ -37,6 +34,11 @@ okn-search = "okn_embeddings.cli.main:app"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.uv]
+# Install the evaluation group by default, so a source checkout gets a working
+# environment from a plain `uv sync` without needing extra flags.
+default-groups = ["dev", "evaluation"]
+
 [tool.uv.sources]
 # Switch back to PyPI once a new release of rdflib-hdt lands in pypi that
 # contains the fixes from https://github.com/RDFLib/rdflib-hdt/pull/39/
@@ -47,7 +49,17 @@ packages = ["src/okn_embeddings"]
 
 [dependency-groups]
 dev = [
+    "pytest>=9.0.2",
     "ruff>=0.14.1",
+]
+
+# Only the evaluation code needs these, and it is only ever run from a source
+# checkout. Keeping them in a group rather than [project.dependencies] means
+# consumers installing this package do not pull in pandas and pyarrow, which
+# together are most of the install size.
+evaluation = [
+    "pandas>=3.0.1",
+    "pyarrow>=23.0.1",
 ]
 
 [tool.pytest.ini_options]
