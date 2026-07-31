@@ -3,20 +3,29 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # This file is src/okn_embeddings/config/settings.py, so the repo root
-# (where default.env / .env live) is four levels up.
+# (where .env lives) is four levels up. That only resolves for a source
+# checkout; an installed copy has no repo root and falls back to the
+# defaults below.
 PROJECT_ROOT = Path(__file__).parents[3]
-DEFAULT_ENV = PROJECT_ROOT / "default.env"
 LOCAL_ENV = PROJECT_ROOT / ".env"
 
 
 class AppSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=(DEFAULT_ENV, LOCAL_ENV))
-    qdrant_location: str
-    qdrant_hnsw_ef: int
-    qdrant_collection: str
-    qdrant_timeout: int
-    model_name: str
+    """Runtime configuration, overridable by environment or .env file.
+
+    Defaults live here rather than in a checked-in env file so that an
+    installed copy of the package works without one. Precedence is
+    environment variables, then .env, then these.
+    """
+
+    model_config = SettingsConfigDict(env_file=LOCAL_ENV)
+
+    qdrant_location: str = "http://127.0.0.1:6663"
+    qdrant_hnsw_ef: int = 500
+    qdrant_collection: str = "OKN-Graph"
+    qdrant_timeout: int = 30
+    model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
 
 
 def load_settings():
-    return AppSettings()  # type: ignore
+    return AppSettings()
