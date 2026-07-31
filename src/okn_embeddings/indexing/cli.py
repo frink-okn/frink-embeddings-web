@@ -6,6 +6,8 @@ import typer
 from loguru import logger
 
 from ..config import AppContext
+from ..config.settings import load_settings
+from ..core.embedding import make_embedder
 from ..core.errors import friendly_error
 from .models import MaterializationConfiguration
 from .output import write_json, write_jsonl, write_text
@@ -348,6 +350,26 @@ def upload(
         f"{action} {total} points into {ctx.settings.qdrant_collection} "
         f"at {ctx.settings.qdrant_location}"
     )
+
+
+@app.command("download-model")
+def download_model():
+    """Ensure the configured embedding model is in the local cache.
+
+    Building the embedder fetches the model when it is missing, so this is a
+    no-op once the cache is warm. It exists so an image build can prime the
+    cache in its own layer, instead of every container downloading the model
+    the first time it embeds anything. Deliberately avoids AppContext, which
+    would open a Qdrant connection this has no use for.
+    """
+    settings = load_settings()
+
+    try:
+        make_embedder(settings)
+    except Exception as e:
+        _fail(f"Could not download model {settings.model_name}: {e}")
+
+    typer.echo(f"Model {settings.model_name} is available")
 
 
 if __name__ == "__main__":
