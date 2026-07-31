@@ -3,19 +3,19 @@ from pathlib import Path
 from rdflib import Graph, URIRef
 from rdflib.namespace import RDF, RDFS
 
-from frink_embeddings_web.indexing.models import (
+from okn_embeddings.indexing.models import (
     GraphConfiguration,
     MaterializationConfiguration,
 )
-from frink_embeddings_web.indexing.reader import graph_reader
-from frink_embeddings_web.indexing.sample import sample_targets, sample_types
-from frink_embeddings_web.indexing.text import (
+from okn_embeddings.indexing.reader import graph_reader
+from okn_embeddings.indexing.sample import sample_targets, sample_types
+from okn_embeddings.indexing.text import (
     effective_label_predicates,
     fallback_label,
     humanize,
     stable_score,
 )
-from frink_embeddings_web.indexing.textify import (
+from okn_embeddings.indexing.textify import (
     Textifier,
     materialize_records,
 )

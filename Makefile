@@ -1,12 +1,12 @@
-DOCKER_NAME ?= frink-web
+DOCKER_NAME ?= okn-embeddings
 
 .PHONY: dev
 dev:
-	uv run flask --app frink_embeddings_web.web.app run --debug
+	uv run flask --app okn_embeddings.web.app run --debug
 
 .PHONY: dev-gunicorn
 dev-gunicorn:
-	uv run gunicorn frink_embeddings_web.web.app:app
+	uv run gunicorn okn_embeddings.web.app:app
 
 .PHONY: docker-build
 docker-build:

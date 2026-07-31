@@ -1,4 +1,4 @@
-# frink-embeddings-web
+# okn-embeddings
 
 Python app to **produce** and **search** vector embeddings of RDF knowledge graphs. The
 indexing pipeline turns graph nodes into text and embeds them; the search interfaces embed a
@@ -18,14 +18,14 @@ One shared search core powers three interfaces:
   serialized scored points.
 - **HTMX web UI** — `web/routes.py`: `GET /` renders the form; `POST /query-view` returns an
   HTML results partial. Templates in `web/templates/`, assets in `web/static/`.
-- **CLI** — `cli/main.py`: the `frink-search` Typer app. `search` (text or node/IRI query,
+- **CLI** — `cli/main.py`: the `okn-search` Typer app. `search` (text or node/IRI query,
   `--graph`/`--exclude-graph`, `--limit`/`--offset`, `--exact`, `--show-repr`, `--json`),
   `survey` (per-graph top-N across every graph or a `-g`/`-x` subset — `core/explore.py`,
   one Qdrant batch request) and `list-graphs` (point counts, `--sort name|count`).
 
 Supporting modules:
 
-- **indexing/** — Typer app (`frink-indexing`) that produces the embeddings: `textify`
+- **indexing/** — Typer app (`okn-indexing`) that produces the embeddings: `textify`
   materializes RDF (HDT) graphs into embedding-text records (`--jsonl` for one record per line),
   `sample-types`/`sample-targets` explore the graph, and `upload` reads those JSONL records,
   embeds each through the shared `core/embedding.py` seam (so stored vectors match the query
@@ -58,8 +58,8 @@ Use `uv` for everything.
 - `make lint` — `ruff check` + `ruff format --check`
 - `make format` — `ruff check --fix` + `ruff format`
 - `make docker-build` / `make docker-run`
-- `uv run frink-indexing --help` — indexing/materialization CLI
-- `uv run frink-search --help` — search CLI (`search`, `list-graphs`)
+- `uv run okn-indexing --help` — indexing/materialization CLI
+- `uv run okn-search --help` — search CLI (`search`, `list-graphs`)
 
 ## Conventions
 

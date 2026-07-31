@@ -29,5 +29,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/frink-okn/frink-web:latest
-            ghcr.io/frink-okn/frink-web:${{ github.ref_name }}
+            ghcr.io/frink-okn/okn-embeddings:latest
+            ghcr.io/frink-okn/okn-embeddings:${{ github.ref_name }}

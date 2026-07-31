@@ -1,7 +1,7 @@
 [project]
-name = "frink-embeddings-web"
+name = "okn-embeddings"
 version = "0.1.0"
-description = "Frink Embeddings Web"
+description = "Utilities to create, browse, and search embeddings from the OKN graph"
 readme = "README.md"
 license = "MIT"
 authors = [
@@ -30,8 +30,8 @@ dependencies = [
 ]
 
 [project.scripts]
-frink-indexing = "frink_embeddings_web.indexing.cli:app"
-frink-search = "frink_embeddings_web.cli.main:app"
+okn-indexing = "okn_embeddings.indexing.cli:app"
+okn-search = "okn_embeddings.cli.main:app"
 
 [build-system]
 requires = ["hatchling"]
@@ -43,7 +43,7 @@ build-backend = "hatchling.build"
 rdflib-hdt = { git = "https://github.com/RDFLib/rdflib-hdt.git", rev = "5b0a028fbd71e95befeadcf2fecaddb9542578ed" }
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/frink_embeddings_web"]
+packages = ["src/okn_embeddings"]
 
 [dependency-groups]
 dev = [

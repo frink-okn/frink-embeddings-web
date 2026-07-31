@@ -5,17 +5,17 @@ import pytest
 from pydantic import ValidationError
 from qdrant_client.models import Filter, PointStruct
 
-from frink_embeddings_web.config.context import AppContext
-from frink_embeddings_web.core.explore import (
+from okn_embeddings.config.context import AppContext
+from okn_embeddings.core.explore import (
     resolve_target_graphs,
     run_survey,
 )
-from frink_embeddings_web.core.models import (
+from okn_embeddings.core.models import (
     NodeFeature,
     TextFeature,
     build_feature,
 )
-from frink_embeddings_web.core.query import build_graph_filter
+from okn_embeddings.core.query import build_graph_filter
 
 
 def test_resolve_target_graphs_include_wins():
@@ -113,7 +113,7 @@ def test_run_survey_orders_graphs_by_best_score(
         return np.array(_unit(dim, 1.0), dtype=np.float32)
 
     monkeypatch.setattr(
-        "frink_embeddings_web.core.explore.get_embedding", embed
+        "okn_embeddings.core.explore.get_embedding", embed
     )
 
     results = run_survey(
@@ -134,7 +134,7 @@ def test_run_survey_with_no_filter_surveys_every_graph(
 ):
     dim = _seed(ctx, [("a", 0.3), ("b", 0.7)])
     monkeypatch.setattr(
-        "frink_embeddings_web.core.explore.get_embedding",
+        "okn_embeddings.core.explore.get_embedding",
         lambda _ctx, _feature: np.array(_unit(dim, 1.0), dtype=np.float32),
     )
 

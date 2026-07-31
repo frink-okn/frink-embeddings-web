@@ -62,7 +62,7 @@ class GraphConfiguration(BaseModel):
 
     # Ordered predicates used by `best_label` before falling back to an IRI
     # fragment. These should be graph-appropriate name/title/description
-    # predicates discovered with `frink-indexing sample-types`.
+    # predicates discovered with `okn-indexing sample-types`.
     label_predicates: list[str] = Field(default_factory=list)
 
     # Predicates to exclude from graph walking and embedding text. Use this for
@@ -131,7 +131,7 @@ class ResolvedTargetConfiguration(TargetConfiguration):
 
 
 class MaterializationConfiguration(BaseModel):
-    """Top-level TOML configuration for `frink-indexing textify`."""
+    """Top-level TOML configuration for `okn-indexing textify`."""
 
     # Global defaults merged into every target.
     defaults: GraphConfiguration = Field(default_factory=GraphConfiguration)

@@ -10,7 +10,7 @@
     hx-disabled-elt=".submit-req"
     hx-include=".query-form"
     hx-indicator=".query-form"
-    hx-on:htmx-config-request="Frink.updateQueryParams()"
+    hx-on:htmx-config-request="OKN.updateQueryParams()"
     hx-vals='{ "offset": {{ query.offset - query.limit if query.offset >= query.limit else 0 }} }'
     {% if query.offset == 0 %}disabled{% endif %}
   >
@@ -24,7 +24,7 @@
     hx-disabled-elt=".submit-req"
     hx-include=".query-form"
     hx-indicator=".query-form"
-    hx-on:htmx-config-request="Frink.updateQueryParams()"
+    hx-on:htmx-config-request="OKN.updateQueryParams()"
     hx-vals='{ "offset": {{ query.offset + query.limit }} }'
   >
     Next

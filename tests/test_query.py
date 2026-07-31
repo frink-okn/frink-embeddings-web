@@ -1,8 +1,8 @@
 import numpy as np
 
-from frink_embeddings_web.config.context import AppContext
-from frink_embeddings_web.core.models import TextFeature
-from frink_embeddings_web.core.query import get_embedding
+from okn_embeddings.config.context import AppContext
+from okn_embeddings.core.models import TextFeature
+from okn_embeddings.core.query import get_embedding
 
 
 def test_get_embedding_text_routes_through_embedder(ctx: AppContext):

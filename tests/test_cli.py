@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from frink_embeddings_web.core.models import (
+from okn_embeddings.core.models import (
     NodeFeature,
     TextFeature,
     build_query,
