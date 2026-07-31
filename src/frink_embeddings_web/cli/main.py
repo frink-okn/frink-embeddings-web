@@ -2,14 +2,13 @@ import json
 from enum import Enum
 from typing import Annotated, NoReturn
 
-import httpx
 import typer
 from pydantic import ValidationError
 from rich.console import Console
 from rich.table import Table
 
 from ..config import AppContext
-from ..core.errors import unwrap_qdrant_error
+from ..core.errors import friendly_error
 from ..core.explore import GraphSurveyResult, run_survey
 from ..core.graphs import get_graph_facets
 from ..core.models import build_feature, build_query
@@ -33,13 +32,6 @@ def _fail(message: str) -> NoReturn:
     """Print an error to stderr and exit with a nonzero status."""
     typer.echo(message, err=True)
     raise typer.Exit(code=1)
-
-
-def _error_message(e: Exception) -> str:
-    inner = unwrap_qdrant_error(e)
-    if isinstance(inner, httpx.ConnectError):
-        return "Could not connect to Qdrant server"
-    return str(inner)
 
 
 def _print_results_table(rows: list[ResultRow], show_repr: bool) -> None:
@@ -159,7 +151,7 @@ def search(
     try:
         response = run_similarity_search(ctx, query_obj=query, exact=exact)
     except Exception as e:
-        _fail(_error_message(e))
+        _fail(friendly_error(e))
 
     rows = [summarize_point(p) for p in response.points]
 
@@ -300,7 +292,7 @@ def survey(
             exact=exact,
         )
     except Exception as e:
-        _fail(_error_message(e))
+        _fail(friendly_error(e))
 
     if as_json:
         _print_survey_json(results, show_repr)
@@ -328,7 +320,7 @@ def list_graphs(
     try:
         facets = get_graph_facets(ctx)
     except Exception as e:
-        _fail(_error_message(e))
+        _fail(friendly_error(e))
 
     if sort == GraphSort.COUNT:
         facets = sorted(facets, key=lambda f: f.count, reverse=True)

@@ -1,23 +1,24 @@
 from pathlib import Path
 
-from rdflib import Graph, Literal, URIRef
+from rdflib import Graph, URIRef
 from rdflib.namespace import RDF, RDFS
 
-from frink_embeddings_web.indexing.index import (
-    build_embedding_text,
-    display_label,
-    effective_label_predicates,
-    fallback_label,
-    humanize,
-    materialize_records,
-    stable_score,
-    walk_graph,
-)
 from frink_embeddings_web.indexing.models import (
     GraphConfiguration,
     MaterializationConfiguration,
 )
+from frink_embeddings_web.indexing.reader import graph_reader
 from frink_embeddings_web.indexing.sample import sample_targets, sample_types
+from frink_embeddings_web.indexing.text import (
+    effective_label_predicates,
+    fallback_label,
+    humanize,
+    stable_score,
+)
+from frink_embeddings_web.indexing.textify import (
+    Textifier,
+    materialize_records,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -126,17 +127,21 @@ def test_walk_graph_uses_ignore_predicates_limit_and_depth():
         expansion_limit=1,
     )
 
-    triples = list(walk_graph(graph, root, config))
+    triples = list(Textifier(graph_reader(graph)).walk(root, config))
     selected_objects = sorted(
         objects,
         key=lambda o: stable_score(root, pred, o),
     )
 
-    assert (0, root, ignored, Literal("skip me")) not in triples
-    assert [triple[3] for triple in triples if triple[1] == root] == (
-        selected_objects[:2]
+    # The ignored predicate never appears.
+    assert all(p.value != str(ignored) for _, _, p, _ in triples)
+    # predicate_limit keeps the two lowest-scoring objects at the root.
+    root_objects = [o.value for level, _, _, o in triples if level == 0]
+    assert root_objects == [str(o) for o in selected_objects[:2]]
+    # Expansion reaches the leaf predicate one hop down.
+    assert any(
+        level == 1 and p.value == str(leaf_pred) for level, _, p, _ in triples
     )
-    assert any(level == 1 and p == leaf_pred for level, _, p, _ in triples)
 
 
 def test_build_embedding_text_formats_labels_literals_and_nested_nodes():
@@ -144,7 +149,7 @@ def test_build_embedding_text_formats_labels_literals_and_nested_nodes():
     root = URIRef("http://example.com/root")
     config = GraphConfiguration(expansion_limit=1)
 
-    text = build_embedding_text(graph, root, config)
+    text = Textifier(graph_reader(graph)).build_embedding_text(root, config)
 
     assert "label: Root label" in text
     assert "related predicate: Related label" in text
@@ -172,12 +177,7 @@ def test_display_label_uses_target_template_fields_with_fallback():
     target = config.for_target("thing")
 
     assert (
-        display_label(
-            graph,
-            root,
-            target,
-            materialization_config=config,
-        )
+        Textifier(graph_reader(graph), config).display_label(root, target)
         == "Root label: 42"
     )
 
@@ -206,11 +206,8 @@ def test_display_label_uses_label_profile_for_non_target_nodes():
     graph.add((related, RDF.type, URIRef("http://example.com/Related")))
 
     assert (
-        display_label(
-            graph,
-            related,
-            config.for_target("thing"),
-            materialization_config=config,
+        Textifier(graph_reader(graph), config).display_label(
+            related, config.for_target("thing")
         )
         == "profile: Related label"
     )

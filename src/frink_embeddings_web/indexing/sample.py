@@ -7,13 +7,10 @@ from typing import Iterable
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import RDF
 
-from .index import (
-    OutputRecord,
-    best_label,
-    materialize_records,
-    predicate_text,
-)
 from .models import GraphConfiguration, MaterializationConfiguration
+from .output import OutputRecord
+from .reader import graph_reader
+from .textify import Textifier, materialize_records
 
 
 @dataclass
@@ -83,6 +80,7 @@ def sample_types(
             samples[type_iri].append(str(subject))
 
     config = GraphConfiguration()
+    textifier = Textifier(graph_reader(graph))
     records: list[TypeSampleRecord] = []
 
     for type_iri in sorted(counts):
@@ -151,7 +149,7 @@ def sample_types(
                     samples_for_pred.append(
                         ObjectSample(
                             iri=str(obj),
-                            label=best_label(graph, obj, config),
+                            label=textifier.best_label(obj, config),
                             types=sorted(object_type_iris),
                         )
                     )
@@ -159,7 +157,7 @@ def sample_types(
         literal_predicates = [
             LiteralPredicateSample(
                 predicate=pred_iri,
-                label=predicate_text(graph, URIRef(pred_iri), config),
+                label=textifier.predicate_text(URIRef(pred_iri), config),
                 count=count,
                 values=predicate_values[pred_iri],
             )
@@ -172,13 +170,12 @@ def sample_types(
         object_predicates = [
             ObjectPredicateSample(
                 predicate=pred_iri,
-                label=predicate_text(graph, URIRef(pred_iri), config),
+                label=textifier.predicate_text(URIRef(pred_iri), config),
                 count=count,
                 object_types=[
                     ObjectTypeSample(
                         type=object_type_iri,
-                        label=best_label(
-                            graph,
+                        label=textifier.best_label(
                             URIRef(object_type_iri),
                             config,
                             use_fallback=True,
@@ -193,8 +190,7 @@ def sample_types(
                 object_label_predicates=[
                     LiteralPredicateSample(
                         predicate=label_pred_iri,
-                        label=predicate_text(
-                            graph,
+                        label=textifier.predicate_text(
                             URIRef(label_pred_iri),
                             config,
                         ),
@@ -217,8 +213,7 @@ def sample_types(
         records.append(
             TypeSampleRecord(
                 type=type_iri,
-                label=best_label(
-                    graph,
+                label=textifier.best_label(
                     URIRef(type_iri),
                     config,
                     use_fallback=True,
@@ -286,16 +281,14 @@ def write_sample_types_text(
             f.write("literal predicates:\n")
             for pred in record.literal_predicates:
                 f.write(
-                    f"- {pred.label} ({pred.predicate}) "
-                    f"[count={pred.count}]\n"
+                    f"- {pred.label} ({pred.predicate}) [count={pred.count}]\n"
                 )
                 for value in pred.values:
                     f.write(f"  - {value}\n")
             f.write("object predicates:\n")
             for pred in record.object_predicates:
                 f.write(
-                    f"- {pred.label} ({pred.predicate}) "
-                    f"[count={pred.count}]\n"
+                    f"- {pred.label} ({pred.predicate}) [count={pred.count}]\n"
                 )
                 f.write("  object types:\n")
                 for object_type in pred.object_types:
