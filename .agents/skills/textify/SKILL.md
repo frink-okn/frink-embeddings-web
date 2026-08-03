@@ -44,10 +44,13 @@ The `okn-indexing` CLI is used to explore an HDT graph, evaluate candidate confi
     - Prefer `label_predicates` when a graph already has appropriate RDF predicates for names, titles, labels, or descriptions.
     - Only use `label_template`, `label_fields`, or `label_profiles` when no appropriate RDF label predicate exists, or when direct labels are too weak, too generic, or too verbose.
     - Do not create boilerplate label profiles that simply map `{name}` to a normal RDF name predicate; put that predicate in `label_predicates` instead.
+    - Before adopting a template, check the *coverage* of every field predicate. A template whose fields are missing on most roots renders as debris (`"apoptotic process ()"`), so a template is only worth it when its fields are nearly always present.
     - Use `label_profiles` when helper classes need derived labels during graph walking without becoming textification targets.
-    - Preserve `rdf:type` in embedding text by default because it is usually useful signal. Ignore type only when it is clearly unhelpful or misleading, such as ontology meta-types like `owl:Class`.
+    - Preserve `rdf:type` in embedding text by default because it is usually useful signal. Ignore type only when it is clearly unhelpful or misleading, such as ontology meta-types like `owl:Class`. In particular, when a target's `type` is the only type its roots carry, every record gets the same type line: drop it.
     - Set conservative `predicate_limit` and `expansion_limit`; prefer concise embedding text for `all-MiniLM-L6-v2`.
     - Choose between `ignore_predicates` and `include_predicates` (see above). Reach for the allowlist when the sampler shows many distinct low-value predicates, when they follow no shared prefix you could enumerate, or when the graph's vocabulary will grow — a blacklist silently lets new noise back in, while an allowlist stays correct.
+    - Put the label predicate itself in neither list but expect it in the walk: the embedding text already opens with a `label:` line, so leaving `rdfs:label` walkable prints the label twice. Exclude it from the walk (it is still used for labeling, which does not go through the walk).
+    - Set `expansion_limit = 0` unless you have a specific reason not to. `build_embedding_text` emits only level-0 lines, so a deeper walk is computed and then discarded — on a large graph that is a wasted subject scan per object.
 7. Run `okn-indexing sample-targets` and, when useful, `okn-indexing textify` with small `--limit` values.
 8. Iterate until the sampled embedding text is compact, readable, and semantically useful.
 9. Write a report in the folder with the rest of the output titled `README.md`.
