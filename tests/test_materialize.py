@@ -1,6 +1,9 @@
+import random
+from collections import Counter
 from pathlib import Path
+from types import SimpleNamespace
 
-from rdflib import Graph, URIRef
+from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import RDF, RDFS
 
 from okn_embeddings.indexing.models import (
@@ -8,7 +11,13 @@ from okn_embeddings.indexing.models import (
     MaterializationConfiguration,
 )
 from okn_embeddings.indexing.reader import graph_reader
-from okn_embeddings.indexing.sample import sample_targets, sample_types
+from okn_embeddings.indexing.sample import (
+    FALLBACK_SEED,
+    graph_seed,
+    reservoir_sample,
+    sample_targets,
+    sample_types,
+)
 from okn_embeddings.indexing.text import (
     effective_label_predicates,
     fallback_label,
@@ -379,10 +388,129 @@ def test_sample_targets_uses_configured_materialization():
         }
     )
 
-    records = sample_targets(graph, config, limit=1)
+    records = sample_targets(graph, config, limit=1, seed=0)
 
     assert len(records) == 1
     assert records[0].target == "thing"
     assert records[0].type == str(root_type)
     assert len(records[0].records) == 1
-    assert records[0].records[0].embedding_text == "label: a\nvalue: same"
+    # Which root is sampled is up to the RNG; whichever it is, the record is
+    # materialized through the configured target.
+    assert records[0].records[0].embedding_text in {
+        "label: a\nvalue: same",
+        "label: b\nvalue: same",
+        "label: c\nvalue: different",
+    }
+
+
+# --- sampling: uniform, seeded, reproducible -----------------------------
+
+
+def _many_things(n: int) -> Graph:
+    """A graph of `n` ex:Thing roots named in iteration order t00, t01, …"""
+    graph = Graph()
+    thing = URIRef("http://example.com/Thing")
+    for i in range(n):
+        subject = URIRef(f"http://example.com/t{i:02d}")
+        graph.add((subject, RDF.type, thing))
+        graph.add((subject, RDFS.label, Literal(f"thing {i:02d}")))
+    return graph
+
+
+def test_reservoir_sample_keeps_k_items_from_the_stream():
+    picked = reservoir_sample(range(1000), 5, random.Random(1))
+
+    assert len(picked) == 5
+    assert len(set(picked)) == 5
+    assert all(0 <= item < 1000 for item in picked)
+
+
+def test_reservoir_sample_returns_everything_when_shorter_than_k():
+    assert sorted(reservoir_sample(range(3), 10, random.Random(1))) == [
+        0,
+        1,
+        2,
+    ]
+
+
+def test_reservoir_sample_is_uniform():
+    # Every item should land in the reservoir about k/n of the time. With
+    # n=10, k=2 and 4000 draws, each item's expected share is 20%.
+    rng = random.Random(7)
+    hits = Counter()
+    trials = 4000
+    for _ in range(trials):
+        hits.update(reservoir_sample(range(10), 2, rng))
+
+    shares = [hits[i] / trials for i in range(10)]
+    assert all(0.15 < share < 0.25 for share in shares), shares
+
+
+def test_sample_types_looks_past_the_first_n_subjects():
+    graph = _many_things(60)
+
+    records = sample_types(graph, limit=3, seed=99)
+    sampled = set(records[0].sample_iris)
+
+    assert len(sampled) == 3
+    # The old behavior kept exactly t00, t01, t02 -- the lexicographically
+    # first roots. A uniform sample of 3 from 60 essentially never does.
+    assert sampled != {
+        "http://example.com/t00",
+        "http://example.com/t01",
+        "http://example.com/t02",
+    }
+
+
+def test_sample_types_is_reproducible_for_a_seed():
+    graph = _many_things(60)
+
+    first = sample_types(graph, limit=3, seed=99)[0].sample_iris
+    again = sample_types(graph, limit=3, seed=99)[0].sample_iris
+    other = sample_types(graph, limit=3, seed=1234)[0].sample_iris
+
+    assert first == again
+    assert first != other
+
+
+def test_sample_targets_looks_past_the_first_n_roots():
+    graph = _many_things(60)
+    config = MaterializationConfiguration.model_validate(
+        {
+            "targets": {
+                "thing": {
+                    "type": "http://example.com/Thing",
+                    "ignore_predicates": [str(RDF.type)],
+                }
+            }
+        }
+    )
+
+    records = sample_targets(graph, config, limit=3, seed=99)[0].records
+    labels = {record.label for record in records}
+
+    assert len(labels) == 3
+    assert labels != {"thing 00", "thing 01", "thing 02"}
+
+
+def test_graph_seed_falls_back_without_an_hdt_document():
+    assert graph_seed(Graph()) == FALLBACK_SEED
+
+
+def test_graph_seed_is_derived_from_hdt_header_stats():
+    def fake(total_triples):
+        return SimpleNamespace(
+            store=SimpleNamespace(
+                hdt_document=SimpleNamespace(
+                    total_triples=total_triples,
+                    nb_subjects=17,
+                    nb_predicates=3,
+                    nb_objects=25,
+                )
+            )
+        )
+
+    # Same graph identity -> same seed; a different graph -> different seed.
+    assert graph_seed(fake(600)) == graph_seed(fake(600))
+    assert graph_seed(fake(600)) != graph_seed(fake(601))
+    assert graph_seed(fake(600)) != FALLBACK_SEED

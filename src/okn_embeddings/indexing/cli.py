@@ -188,12 +188,24 @@ def sample_types_cmd(
             help="Maximum literal examples to include per predicate.",
         ),
     ] = 3,
+    seed: Annotated[
+        int | None,
+        typer.Option(
+            "--seed",
+            help=(
+                "Sampling seed. Defaults to one derived from the graph "
+                "itself, so repeated runs report the same subjects; pass a "
+                "different value to draw a different sample."
+            ),
+        ),
+    ] = None,
 ):
     graph = load_graph(hdt_file)
     records = sample_types(
         graph,
         limit=limit,
         values_limit=values_limit,
+        seed=seed,
     )
 
     if text:
@@ -230,13 +242,24 @@ def sample_targets_cmd(
         typer.Option(
             "--limit",
             min=1,
-            help="Maximum number of root nodes to process per target.",
+            help="Maximum number of root nodes to sample per target.",
         ),
     ] = 5,
+    seed: Annotated[
+        int | None,
+        typer.Option(
+            "--seed",
+            help=(
+                "Sampling seed. Defaults to one derived from the graph "
+                "itself, so repeated runs sample the same roots; pass a "
+                "different value to draw a different sample."
+            ),
+        ),
+    ] = None,
 ):
     graph = load_graph(hdt_file)
     config = MaterializationConfiguration.from_toml(config_toml)
-    records = sample_targets(graph, config, limit=limit)
+    records = sample_targets(graph, config, limit=limit, seed=seed)
 
     if text:
         write_sample_targets_text(records, output)
