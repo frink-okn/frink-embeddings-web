@@ -144,6 +144,74 @@ def test_walk_graph_uses_ignore_predicates_limit_and_depth():
     )
 
 
+def test_walk_graph_include_predicates_is_an_allowlist():
+    graph = load_fixture("walk_graph.ttl")
+    root = URIRef("http://example.com/root")
+    pred = URIRef("http://example.com/hasPart")
+    ignored = URIRef("http://example.com/ignored")
+
+    config = GraphConfiguration(
+        include_predicates=[str(ignored)],
+        expansion_limit=0,
+    )
+
+    triples = list(Textifier(graph_reader(graph)).walk(root, config))
+
+    # Only the allowed predicate survives, even though it is the one the
+    # blacklist test skips.
+    assert {p.value for _, _, p, _ in triples} == {str(ignored)}
+    assert all(p.value != str(pred) for _, _, p, _ in triples)
+
+
+def test_walk_graph_ignore_predicates_still_applies_within_the_allowlist():
+    graph = load_fixture("walk_graph.ttl")
+    root = URIRef("http://example.com/root")
+    pred = URIRef("http://example.com/hasPart")
+    ignored = URIRef("http://example.com/ignored")
+
+    config = GraphConfiguration(
+        include_predicates=[str(pred), str(ignored)],
+        ignore_predicates=[str(ignored)],
+        expansion_limit=0,
+    )
+
+    triples = list(Textifier(graph_reader(graph)).walk(root, config))
+
+    assert {p.value for _, _, p, _ in triples} == {str(pred)}
+
+
+def test_walk_graph_empty_include_predicates_allows_everything():
+    graph = load_fixture("walk_graph.ttl")
+    root = URIRef("http://example.com/root")
+
+    config = GraphConfiguration(expansion_limit=0)
+
+    triples = list(Textifier(graph_reader(graph)).walk(root, config))
+
+    assert len({p.value for _, _, p, _ in triples}) == 2
+
+
+def test_config_merges_include_predicates_from_defaults_and_target():
+    config = MaterializationConfiguration.model_validate(
+        {
+            "defaults": {
+                "include_predicates": ["http://example.com/keepDefault"],
+            },
+            "targets": {
+                "thing": {
+                    "type": "http://example.com/Thing",
+                    "include_predicates": ["http://example.com/keepTarget"],
+                },
+            },
+        }
+    )
+
+    assert config.for_target("thing").include_predicates == [
+        "http://example.com/keepDefault",
+        "http://example.com/keepTarget",
+    ]
+
+
 def test_build_embedding_text_formats_labels_literals_and_nested_nodes():
     graph = load_fixture("embedding_text.ttl")
     root = URIRef("http://example.com/root")

@@ -9,6 +9,8 @@ The overall purpose is to generate textual representations of selected RDF nodes
 
 At a high level, the `okn-indexing` textification algorithm starts from configured RDF types, finds subject IRIs of those types, assigns each root node a human-readable label, walks selected outgoing graph edges, and turns predicate/object pairs into compact text lines. Object IRIs are represented by derived labels rather than full nested graph dumps. Label profiles can be defined separately from textification targets, so helper classes can provide good labels when they appear during graph walking without becoming standalone embedding documents. The output records group equivalent text under one record, preserve source IRIs, and include both a display label and embedding text.
 
+Predicate selection works two ways. `ignore_predicates` is a blacklist; `include_predicates` is an allowlist that, when non-empty, restricts the walk to exactly those predicates (with `ignore_predicates` still applied within it). Choose by which list is smaller and more stable: a graph with a handful of noisy predicates wants a blacklist, while a graph whose relation vocabulary is large or open-ended wants an allowlist.
+
 The end product is a concise, evidence-backed `config.toml` for `okn-indexing textify`, plus a report explaining the choices.
 
 ## CLI Utilities
@@ -45,7 +47,7 @@ The `okn-indexing` CLI is used to explore an HDT graph, evaluate candidate confi
     - Use `label_profiles` when helper classes need derived labels during graph walking without becoming textification targets.
     - Preserve `rdf:type` in embedding text by default because it is usually useful signal. Ignore type only when it is clearly unhelpful or misleading, such as ontology meta-types like `owl:Class`.
     - Set conservative `predicate_limit` and `expansion_limit`; prefer concise embedding text for `all-MiniLM-L6-v2`.
-    - Add `ignore_predicates` for noisy, huge, structural, or low-semantic-value predicates.
+    - Choose between `ignore_predicates` and `include_predicates` (see above). Reach for the allowlist when the sampler shows many distinct low-value predicates, when they follow no shared prefix you could enumerate, or when the graph's vocabulary will grow — a blacklist silently lets new noise back in, while an allowlist stays correct.
 7. Run `okn-indexing sample-targets` and, when useful, `okn-indexing textify` with small `--limit` values.
 8. Iterate until the sampled embedding text is compact, readable, and semantically useful.
 9. Write a report in the folder with the rest of the output titled `README.md`.
