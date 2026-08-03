@@ -36,7 +36,11 @@ The `okn-indexing` CLI is used to explore an HDT graph, evaluate candidate confi
     - direct literal predicates that can become labels or useful text.
     - outgoing object predicates that lead to useful labeled entities.
     - object type distributions and object label predicates.
-    - high-fanout or noisy predicates to ignore.
+    - high-fanout predicates. Read `mean_per_subject` (shown as `per subject` in text output), not `count`, which is only occurrences across the sampled subjects. A predicate averaging one value per subject is an annotation; one averaging tens needs a decision.
+    - High fanout by itself does not mean "ignore" — what matters is whether the values are *exchangeable*. Ask whether an arbitrary handful of them still represents the whole:
+        * **Exchangeable** — siblings of the same kind, none more correct than another: the counties of a state, the authors of a paper, the ingredients of a product. Sampling a few is genuinely informative ("counties: Alameda, Butte, Calaveras"), and `predicate_limit` is exactly the right tool. Keep the predicate and cap it.
+        * **Ranked** — values that differ in how informative they are, typically an inferred or transitive hierarchy. A materialized `subClassOf` closure holds one direct parent among dozens of increasingly generic ancestors, so an arbitrary subset almost always misses the useful one and yields "temporally related to: occurrent". Here `predicate_limit` cannot help and the predicate is better excluded: the values are both uninformative and drawn from a small pool of generic terms that recur across the whole corpus, so they dilute every record in the same direction.
+    - Sampled values are chosen by a stable hash, so the choice is reproducible but not "the first" or "the best" ones. That is fine when the values are exchangeable and a problem when they are ranked.
 6. Draft `config.toml`.
     - Look at the file `indexing/models.py` for information about what a graph configuration consists of. You can also review `indexing/index.py` to understand the indexing algorithm.
     - Set target `type` values explicitly.

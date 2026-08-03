@@ -73,7 +73,14 @@ def reservoir_sample(
 class LiteralPredicateSample:
     predicate: str
     label: str
+    # Occurrences across the sampled subjects -- NOT a graph-wide total.
     count: int
+    # `count` divided by the number of subjects sampled: how many values a
+    # subject of this type carries for this predicate, on average. High fanout
+    # is a prompt to decide, not a verdict -- a state's counties and a
+    # class's inferred ancestors both score in the tens, but sampling a few
+    # counties is informative while sampling a few ancestors is not.
+    mean_per_subject: float
     values: list[str]
 
 
@@ -95,7 +102,9 @@ class ObjectSample:
 class ObjectPredicateSample:
     predicate: str
     label: str
+    # As above: occurrences across the sample, and the per-subject mean.
     count: int
+    mean_per_subject: float
     object_types: list[ObjectTypeSample]
     object_label_predicates: list[LiteralPredicateSample]
     sample_objects: list[ObjectSample]
@@ -234,11 +243,17 @@ def sample_types(
                         )
                     )
 
+        # Counts below are over the sampled subjects, so the per-subject mean
+        # divides by how many were actually sampled (fewer than `limit` when
+        # the type is smaller than that).
+        sampled = len(samples[type_iri]) or 1
+
         literal_predicates = [
             LiteralPredicateSample(
                 predicate=pred_iri,
                 label=textifier.predicate_text(URIRef(pred_iri), config),
                 count=count,
+                mean_per_subject=round(count / sampled, 2),
                 values=predicate_values[pred_iri],
             )
             for pred_iri, count in sorted(
@@ -252,6 +267,7 @@ def sample_types(
                 predicate=pred_iri,
                 label=textifier.predicate_text(URIRef(pred_iri), config),
                 count=count,
+                mean_per_subject=round(count / sampled, 2),
                 object_types=[
                     ObjectTypeSample(
                         type=object_type_iri,
@@ -275,6 +291,7 @@ def sample_types(
                             config,
                         ),
                         count=label_pred_count,
+                        mean_per_subject=round(label_pred_count / sampled, 2),
                         values=object_label_values[pred_iri][label_pred_iri],
                     )
                     for label_pred_iri, label_pred_count in sorted(
@@ -379,14 +396,18 @@ def write_sample_types_text(
             f.write("literal predicates:\n")
             for pred in record.literal_predicates:
                 f.write(
-                    f"- {pred.label} ({pred.predicate}) [count={pred.count}]\n"
+                    f"- {pred.label} ({pred.predicate}) "
+                    f"[count={pred.count}, "
+                    f"per subject={pred.mean_per_subject}]\n"
                 )
                 for value in pred.values:
                     f.write(f"  - {value}\n")
             f.write("object predicates:\n")
             for pred in record.object_predicates:
                 f.write(
-                    f"- {pred.label} ({pred.predicate}) [count={pred.count}]\n"
+                    f"- {pred.label} ({pred.predicate}) "
+                    f"[count={pred.count}, "
+                    f"per subject={pred.mean_per_subject}]\n"
                 )
                 f.write("  object types:\n")
                 for object_type in pred.object_types:

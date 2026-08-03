@@ -116,7 +116,15 @@ class RDFLibGraphReader(GraphReader):
 
 
 class HDTGraphReader(GraphReader):
-    """Reader that reads the native HDT document, skipping rdflib terms."""
+    """Reader that reads the native HDT document, skipping rdflib terms.
+
+    Every `search_triples` call here discards the second element of the
+    returned pair. Do not start using it as a triple count: for
+    predicate-only patterns it is the number of distinct *subjects*, and
+    `TripleIterator.size_hint()` reports that as accurate. Measured on
+    Ubergraph, `? rdfs:subClassOf ?` reports 3,886,036 against 112,020,318
+    triples actually iterated. Counting means iterating.
+    """
 
     def __init__(self, graph: Graph):
         self.graph = graph

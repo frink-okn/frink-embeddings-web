@@ -514,3 +514,48 @@ def test_graph_seed_is_derived_from_hdt_header_stats():
     assert graph_seed(fake(600)) == graph_seed(fake(600))
     assert graph_seed(fake(600)) != graph_seed(fake(601))
     assert graph_seed(fake(600)) != FALLBACK_SEED
+
+
+def test_sample_types_reports_fanout_per_subject():
+    # Two Things: one with a single-valued annotation, one predicate with
+    # many values per subject -- the shape that distinguishes an annotation
+    # from an edge into a closure.
+    graph = Graph()
+    thing = URIRef("http://example.com/Thing")
+    ancestor_of = URIRef("http://example.com/ancestorOf")
+    name = URIRef("http://example.com/name")
+    for i in range(2):
+        subject = URIRef(f"http://example.com/s{i}")
+        graph.add((subject, RDF.type, thing))
+        graph.add((subject, name, Literal(f"name {i}")))
+        for a in range(10):
+            graph.add((subject, ancestor_of, URIRef(f"http://example.com/a{a}")))
+
+    record = sample_types(graph, limit=2, seed=0)[0]
+
+    literal = {p.predicate: p for p in record.literal_predicates}
+    objects = {p.predicate: p for p in record.object_predicates}
+
+    assert literal[str(name)].count == 2
+    assert literal[str(name)].mean_per_subject == 1.0
+    # 10 objects each across 2 sampled subjects.
+    assert objects[str(ancestor_of)].count == 20
+    assert objects[str(ancestor_of)].mean_per_subject == 10.0
+
+
+def test_mean_per_subject_divides_by_subjects_actually_sampled():
+    # Only 3 subjects exist but limit is 10; the mean must divide by 3.
+    graph = Graph()
+    thing = URIRef("http://example.com/Thing")
+    name = URIRef("http://example.com/name")
+    for i in range(3):
+        subject = URIRef(f"http://example.com/s{i}")
+        graph.add((subject, RDF.type, thing))
+        graph.add((subject, name, Literal(f"name {i}")))
+
+    record = sample_types(graph, limit=10, seed=0)[0]
+    predicate = record.literal_predicates[0]
+
+    assert len(record.sample_iris) == 3
+    assert predicate.count == 3
+    assert predicate.mean_per_subject == 1.0
