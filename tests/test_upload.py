@@ -5,7 +5,8 @@ import pytest
 from qdrant_client.models import ScoredPoint
 
 from okn_embeddings.config.context import AppContext
-from okn_embeddings.core.embedding import FastEmbedEmbedder
+from okn_embeddings.config.settings import AppSettings
+from okn_embeddings.core.embedding import FastEmbedEmbedder, make_embedder
 from okn_embeddings.core.results import summarize_point
 from okn_embeddings.indexing.upload import (
     chunks,
@@ -14,6 +15,8 @@ from okn_embeddings.indexing.upload import (
     point_id,
     upload_file,
 )
+
+_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 
 def _write_records(path, n: int) -> None:
@@ -211,3 +214,22 @@ def test_embed_matches_embed_many(embedder: FastEmbedEmbedder):
 
     assert len(many) == 2
     assert np.array_equal(one, many[0])
+
+
+# --- embedding throughput knobs ---
+
+
+def test_make_embedder_passes_throughput_settings():
+    embedder = make_embedder(
+        AppSettings(model_name=_MODEL, embed_threads=2, embed_parallel=3)
+    )
+
+    assert embedder.threads == 2
+    assert embedder.parallel == 3
+
+
+def test_throughput_settings_default_to_onnxruntime_defaults():
+    embedder = make_embedder(AppSettings(model_name=_MODEL))
+
+    assert embedder.threads is None
+    assert embedder.parallel is None
