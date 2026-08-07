@@ -1,8 +1,10 @@
+import hashlib
 import json
+import random
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, TypeVar
 
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import RDF
@@ -10,14 +12,75 @@ from rdflib.namespace import RDF
 from .models import GraphConfiguration, MaterializationConfiguration
 from .output import OutputRecord
 from .reader import graph_reader
-from .textify import Textifier, materialize_records
+from .textify import (
+    Textifier,
+    finish_records,
+    merge_worker_record,
+)
+
+T = TypeVar("T")
+
+# Seed used for graphs whose identity cannot be read (non-HDT stores, mainly
+# in tests). Any constant will do; it only has to be stable.
+FALLBACK_SEED = 0
+
+
+def graph_seed(graph: Graph) -> int:
+    """A reproducible sampling seed derived from the graph's own identity.
+
+    Read from the HDT header, which costs nothing, rather than hashing the
+    file: the samples then stay the same when the file is renamed, copied, or
+    moved, and change when the graph itself does.
+    """
+    document = getattr(graph.store, "hdt_document", None)
+    if document is None:
+        return FALLBACK_SEED
+
+    identity = "|".join(
+        str(value)
+        for value in (
+            document.total_triples,
+            document.nb_subjects,
+            document.nb_predicates,
+            document.nb_objects,
+        )
+    )
+    digest = hashlib.sha256(identity.encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big")
+
+
+def reservoir_sample(
+    items: Iterable[T], k: int, rng: random.Random
+) -> list[T]:
+    """A uniform `k`-sample of `items`, whose length need not be known.
+
+    Vitter's Algorithm R: keep the first k, then admit the i-th item with
+    probability k/(i+1), evicting a uniformly chosen incumbent. Every item
+    ends up in the reservoir with probability k/n for the final n, while
+    memory stays O(k) -- which is the point on a graph with millions of
+    subjects per type.
+    """
+    reservoir: list[T] = []
+    for i, item in enumerate(items):
+        if i < k:
+            reservoir.append(item)
+        elif (j := rng.randrange(i + 1)) < k:
+            reservoir[j] = item
+    return reservoir
 
 
 @dataclass
 class LiteralPredicateSample:
     predicate: str
     label: str
+    # Occurrences across the sampled subjects -- NOT a graph-wide total.
     count: int
+    # `count` divided by the number of subjects sampled: how many values a
+    # subject of this type carries for this predicate, on average. High fanout
+    # is a prompt to decide, not a verdict -- a state's counties and a
+    # class's inferred ancestors both score in the tens, but sampling a few
+    # counties is informative while sampling a few ancestors is not.
+    mean_per_subject: float
     values: list[str]
 
 
@@ -39,7 +102,9 @@ class ObjectSample:
 class ObjectPredicateSample:
     predicate: str
     label: str
+    # As above: occurrences across the sample, and the per-subject mean.
     count: int
+    mean_per_subject: float
     object_types: list[ObjectTypeSample]
     object_label_predicates: list[LiteralPredicateSample]
     sample_objects: list[ObjectSample]
@@ -66,18 +131,42 @@ def sample_types(
     graph: Graph,
     limit: int = 5,
     values_limit: int = 3,
+    seed: int | None = None,
 ) -> list[TypeSampleRecord]:
+    """Survey the graph's types, with a uniform sample of each type's subjects.
+
+    Sampling is seeded (from the graph's identity unless `seed` is given), so
+    a run over the same graph always reports the same exemplars.
+    """
+    # Reproducibility, not secrecy: a seeded Mersenne Twister is the point.
+    rng = random.Random(  # noqa: S311
+        graph_seed(graph) if seed is None else seed
+    )
+
     counts: defaultdict[str, int] = defaultdict(int)
     samples: defaultdict[str, list[str]] = defaultdict(list)
 
+    # One reservoir per type, sharing this single pass. Each type's counter is
+    # its own `i`, so types spanning five orders of magnitude -- 3.9M classes
+    # and 63 ontologies -- self-adjust without knowing their size in advance.
     for subject, type_node in graph.subject_objects(RDF.type):
         if not isinstance(subject, URIRef) or not isinstance(type_node, URIRef):
             continue
 
         type_iri = str(type_node)
-        counts[type_iri] += 1
-        if len(samples[type_iri]) < limit:
-            samples[type_iri].append(str(subject))
+        seen = counts[type_iri]
+        counts[type_iri] = seen + 1
+
+        bucket = samples[type_iri]
+        if seen < limit:
+            bucket.append(str(subject))
+        elif (j := rng.randrange(seen + 1)) < limit:
+            bucket[j] = str(subject)
+
+    # Present each reservoir in a stable order; the *set* is what the sampling
+    # makes uniform.
+    for bucket in samples.values():
+        bucket.sort()
 
     config = GraphConfiguration()
     textifier = Textifier(graph_reader(graph))
@@ -154,11 +243,17 @@ def sample_types(
                         )
                     )
 
+        # Counts below are over the sampled subjects, so the per-subject mean
+        # divides by how many were actually sampled (fewer than `limit` when
+        # the type is smaller than that).
+        sampled = len(samples[type_iri]) or 1
+
         literal_predicates = [
             LiteralPredicateSample(
                 predicate=pred_iri,
                 label=textifier.predicate_text(URIRef(pred_iri), config),
                 count=count,
+                mean_per_subject=round(count / sampled, 2),
                 values=predicate_values[pred_iri],
             )
             for pred_iri, count in sorted(
@@ -172,6 +267,7 @@ def sample_types(
                 predicate=pred_iri,
                 label=textifier.predicate_text(URIRef(pred_iri), config),
                 count=count,
+                mean_per_subject=round(count / sampled, 2),
                 object_types=[
                     ObjectTypeSample(
                         type=object_type_iri,
@@ -195,6 +291,7 @@ def sample_types(
                             config,
                         ),
                         count=label_pred_count,
+                        mean_per_subject=round(label_pred_count / sampled, 2),
                         values=object_label_values[pred_iri][label_pred_iri],
                     )
                     for label_pred_iri, label_pred_count in sorted(
@@ -232,21 +329,39 @@ def sample_targets(
     graph: Graph,
     config: MaterializationConfiguration,
     limit: int = 5,
+    seed: int | None = None,
 ) -> list[TargetSampleRecord]:
+    """Materialize a uniform sample of each target's roots.
+
+    Unlike a full `textify` run this samples rather than taking the first
+    `limit` roots, so the sampled documents represent the whole target rather
+    than whichever IRIs sort first. Seeded like `sample_types`.
+    """
+    # Reproducibility, not secrecy: a seeded Mersenne Twister is the point.
+    rng = random.Random(  # noqa: S311
+        graph_seed(graph) if seed is None else seed
+    )
+    reader = graph_reader(graph)
+    textifier = Textifier(reader, config)
     records = []
 
     for target in config.targets:
         target_config = config.for_target(target)
+        roots = reservoir_sample(
+            reader.root_iris(target_config.type), limit, rng
+        )
+
+        by_digest: dict[str, OutputRecord] = {}
+        for iri in sorted(roots):
+            merge_worker_record(
+                by_digest, textifier.materialize_one(iri, target_config)
+            )
+
         records.append(
             TargetSampleRecord(
                 target=target,
                 type=target_config.type,
-                records=materialize_records(
-                    graph,
-                    config,
-                    target=target,
-                    limit=limit,
-                ),
+                records=finish_records(by_digest),
             )
         )
 
@@ -281,14 +396,18 @@ def write_sample_types_text(
             f.write("literal predicates:\n")
             for pred in record.literal_predicates:
                 f.write(
-                    f"- {pred.label} ({pred.predicate}) [count={pred.count}]\n"
+                    f"- {pred.label} ({pred.predicate}) "
+                    f"[count={pred.count}, "
+                    f"per subject={pred.mean_per_subject}]\n"
                 )
                 for value in pred.values:
                     f.write(f"  - {value}\n")
             f.write("object predicates:\n")
             for pred in record.object_predicates:
                 f.write(
-                    f"- {pred.label} ({pred.predicate}) [count={pred.count}]\n"
+                    f"- {pred.label} ({pred.predicate}) "
+                    f"[count={pred.count}, "
+                    f"per subject={pred.mean_per_subject}]\n"
                 )
                 f.write("  object types:\n")
                 for object_type in pred.object_types:

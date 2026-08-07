@@ -98,11 +98,14 @@ class Textifier:
     ) -> Generator[tuple[int, GraphTerm, GraphTerm, GraphTerm], None, None]:
         root_term = self.reader.term(root)
         ignore_predicates = set(config.ignore_predicates or [])
+        include_predicates = set(config.include_predicates or [])
 
         objects_by_predicate: defaultdict[GraphTerm, list[GraphTerm]] = (
             defaultdict(list)
         )
         for p, o in self.reader.predicate_objects(root_term):
+            if include_predicates and p.value not in include_predicates:
+                continue
             if p.value in ignore_predicates:
                 continue
             objects_by_predicate[p].append(o)

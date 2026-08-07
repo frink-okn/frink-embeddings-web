@@ -1,6 +1,9 @@
+import random
+from collections import Counter
 from pathlib import Path
+from types import SimpleNamespace
 
-from rdflib import Graph, URIRef
+from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import RDF, RDFS
 
 from okn_embeddings.indexing.models import (
@@ -8,7 +11,13 @@ from okn_embeddings.indexing.models import (
     MaterializationConfiguration,
 )
 from okn_embeddings.indexing.reader import graph_reader
-from okn_embeddings.indexing.sample import sample_targets, sample_types
+from okn_embeddings.indexing.sample import (
+    FALLBACK_SEED,
+    graph_seed,
+    reservoir_sample,
+    sample_targets,
+    sample_types,
+)
 from okn_embeddings.indexing.text import (
     effective_label_predicates,
     fallback_label,
@@ -142,6 +151,74 @@ def test_walk_graph_uses_ignore_predicates_limit_and_depth():
     assert any(
         level == 1 and p.value == str(leaf_pred) for level, _, p, _ in triples
     )
+
+
+def test_walk_graph_include_predicates_is_an_allowlist():
+    graph = load_fixture("walk_graph.ttl")
+    root = URIRef("http://example.com/root")
+    pred = URIRef("http://example.com/hasPart")
+    ignored = URIRef("http://example.com/ignored")
+
+    config = GraphConfiguration(
+        include_predicates=[str(ignored)],
+        expansion_limit=0,
+    )
+
+    triples = list(Textifier(graph_reader(graph)).walk(root, config))
+
+    # Only the allowed predicate survives, even though it is the one the
+    # blacklist test skips.
+    assert {p.value for _, _, p, _ in triples} == {str(ignored)}
+    assert all(p.value != str(pred) for _, _, p, _ in triples)
+
+
+def test_walk_graph_ignore_predicates_still_applies_within_the_allowlist():
+    graph = load_fixture("walk_graph.ttl")
+    root = URIRef("http://example.com/root")
+    pred = URIRef("http://example.com/hasPart")
+    ignored = URIRef("http://example.com/ignored")
+
+    config = GraphConfiguration(
+        include_predicates=[str(pred), str(ignored)],
+        ignore_predicates=[str(ignored)],
+        expansion_limit=0,
+    )
+
+    triples = list(Textifier(graph_reader(graph)).walk(root, config))
+
+    assert {p.value for _, _, p, _ in triples} == {str(pred)}
+
+
+def test_walk_graph_empty_include_predicates_allows_everything():
+    graph = load_fixture("walk_graph.ttl")
+    root = URIRef("http://example.com/root")
+
+    config = GraphConfiguration(expansion_limit=0)
+
+    triples = list(Textifier(graph_reader(graph)).walk(root, config))
+
+    assert len({p.value for _, _, p, _ in triples}) == 2
+
+
+def test_config_merges_include_predicates_from_defaults_and_target():
+    config = MaterializationConfiguration.model_validate(
+        {
+            "defaults": {
+                "include_predicates": ["http://example.com/keepDefault"],
+            },
+            "targets": {
+                "thing": {
+                    "type": "http://example.com/Thing",
+                    "include_predicates": ["http://example.com/keepTarget"],
+                },
+            },
+        }
+    )
+
+    assert config.for_target("thing").include_predicates == [
+        "http://example.com/keepDefault",
+        "http://example.com/keepTarget",
+    ]
 
 
 def test_build_embedding_text_formats_labels_literals_and_nested_nodes():
@@ -311,10 +388,174 @@ def test_sample_targets_uses_configured_materialization():
         }
     )
 
-    records = sample_targets(graph, config, limit=1)
+    records = sample_targets(graph, config, limit=1, seed=0)
 
     assert len(records) == 1
     assert records[0].target == "thing"
     assert records[0].type == str(root_type)
     assert len(records[0].records) == 1
-    assert records[0].records[0].embedding_text == "label: a\nvalue: same"
+    # Which root is sampled is up to the RNG; whichever it is, the record is
+    # materialized through the configured target.
+    assert records[0].records[0].embedding_text in {
+        "label: a\nvalue: same",
+        "label: b\nvalue: same",
+        "label: c\nvalue: different",
+    }
+
+
+# --- sampling: uniform, seeded, reproducible -----------------------------
+
+
+def _many_things(n: int) -> Graph:
+    """A graph of `n` ex:Thing roots named in iteration order t00, t01, …"""
+    graph = Graph()
+    thing = URIRef("http://example.com/Thing")
+    for i in range(n):
+        subject = URIRef(f"http://example.com/t{i:02d}")
+        graph.add((subject, RDF.type, thing))
+        graph.add((subject, RDFS.label, Literal(f"thing {i:02d}")))
+    return graph
+
+
+def test_reservoir_sample_keeps_k_items_from_the_stream():
+    picked = reservoir_sample(range(1000), 5, random.Random(1))
+
+    assert len(picked) == 5
+    assert len(set(picked)) == 5
+    assert all(0 <= item < 1000 for item in picked)
+
+
+def test_reservoir_sample_returns_everything_when_shorter_than_k():
+    assert sorted(reservoir_sample(range(3), 10, random.Random(1))) == [
+        0,
+        1,
+        2,
+    ]
+
+
+def test_reservoir_sample_is_uniform():
+    # Every item should land in the reservoir about k/n of the time. With
+    # n=10, k=2 and 4000 draws, each item's expected share is 20%.
+    rng = random.Random(7)
+    hits = Counter()
+    trials = 4000
+    for _ in range(trials):
+        hits.update(reservoir_sample(range(10), 2, rng))
+
+    shares = [hits[i] / trials for i in range(10)]
+    assert all(0.15 < share < 0.25 for share in shares), shares
+
+
+def test_sample_types_looks_past_the_first_n_subjects():
+    graph = _many_things(60)
+
+    records = sample_types(graph, limit=3, seed=99)
+    sampled = set(records[0].sample_iris)
+
+    assert len(sampled) == 3
+    # The old behavior kept exactly t00, t01, t02 -- the lexicographically
+    # first roots. A uniform sample of 3 from 60 essentially never does.
+    assert sampled != {
+        "http://example.com/t00",
+        "http://example.com/t01",
+        "http://example.com/t02",
+    }
+
+
+def test_sample_types_is_reproducible_for_a_seed():
+    graph = _many_things(60)
+
+    first = sample_types(graph, limit=3, seed=99)[0].sample_iris
+    again = sample_types(graph, limit=3, seed=99)[0].sample_iris
+    other = sample_types(graph, limit=3, seed=1234)[0].sample_iris
+
+    assert first == again
+    assert first != other
+
+
+def test_sample_targets_looks_past_the_first_n_roots():
+    graph = _many_things(60)
+    config = MaterializationConfiguration.model_validate(
+        {
+            "targets": {
+                "thing": {
+                    "type": "http://example.com/Thing",
+                    "ignore_predicates": [str(RDF.type)],
+                }
+            }
+        }
+    )
+
+    records = sample_targets(graph, config, limit=3, seed=99)[0].records
+    labels = {record.label for record in records}
+
+    assert len(labels) == 3
+    assert labels != {"thing 00", "thing 01", "thing 02"}
+
+
+def test_graph_seed_falls_back_without_an_hdt_document():
+    assert graph_seed(Graph()) == FALLBACK_SEED
+
+
+def test_graph_seed_is_derived_from_hdt_header_stats():
+    def fake(total_triples):
+        return SimpleNamespace(
+            store=SimpleNamespace(
+                hdt_document=SimpleNamespace(
+                    total_triples=total_triples,
+                    nb_subjects=17,
+                    nb_predicates=3,
+                    nb_objects=25,
+                )
+            )
+        )
+
+    # Same graph identity -> same seed; a different graph -> different seed.
+    assert graph_seed(fake(600)) == graph_seed(fake(600))
+    assert graph_seed(fake(600)) != graph_seed(fake(601))
+    assert graph_seed(fake(600)) != FALLBACK_SEED
+
+
+def test_sample_types_reports_fanout_per_subject():
+    # Two Things: one with a single-valued annotation, one predicate with
+    # many values per subject -- the shape that distinguishes an annotation
+    # from an edge into a closure.
+    graph = Graph()
+    thing = URIRef("http://example.com/Thing")
+    ancestor_of = URIRef("http://example.com/ancestorOf")
+    name = URIRef("http://example.com/name")
+    for i in range(2):
+        subject = URIRef(f"http://example.com/s{i}")
+        graph.add((subject, RDF.type, thing))
+        graph.add((subject, name, Literal(f"name {i}")))
+        for a in range(10):
+            graph.add((subject, ancestor_of, URIRef(f"http://example.com/a{a}")))
+
+    record = sample_types(graph, limit=2, seed=0)[0]
+
+    literal = {p.predicate: p for p in record.literal_predicates}
+    objects = {p.predicate: p for p in record.object_predicates}
+
+    assert literal[str(name)].count == 2
+    assert literal[str(name)].mean_per_subject == 1.0
+    # 10 objects each across 2 sampled subjects.
+    assert objects[str(ancestor_of)].count == 20
+    assert objects[str(ancestor_of)].mean_per_subject == 10.0
+
+
+def test_mean_per_subject_divides_by_subjects_actually_sampled():
+    # Only 3 subjects exist but limit is 10; the mean must divide by 3.
+    graph = Graph()
+    thing = URIRef("http://example.com/Thing")
+    name = URIRef("http://example.com/name")
+    for i in range(3):
+        subject = URIRef(f"http://example.com/s{i}")
+        graph.add((subject, RDF.type, thing))
+        graph.add((subject, name, Literal(f"name {i}")))
+
+    record = sample_types(graph, limit=10, seed=0)[0]
+    predicate = record.literal_predicates[0]
+
+    assert len(record.sample_iris) == 3
+    assert predicate.count == 3
+    assert predicate.mean_per_subject == 1.0

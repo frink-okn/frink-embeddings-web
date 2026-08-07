@@ -26,6 +26,24 @@ class AppSettings(BaseSettings):
     qdrant_timeout: int = 30
     model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
 
+    # Embedding throughput knobs, both unset by default because onnxruntime's
+    # own defaults win on an ordinary machine. Measured on 8 cores with
+    # all-MiniLM-L6-v2: leaving both alone gives 41.6 records/s, while
+    # embed_threads=1 with embed_parallel=0 gives 19.4 -- the model is small
+    # enough that per-process sessions contend for the same cores rather than
+    # adding throughput.
+    #
+    # They exist because that balance can invert: on a machine with many more
+    # cores, intra-op threading stops scaling before the cores run out, and
+    # splitting into processes (embed_parallel=N with embed_threads=1, so the
+    # workers do not oversubscribe) can win. Measure before setting either.
+    #
+    # embed_threads: onnxruntime threads per session. None = its default.
+    # embed_parallel: worker processes. None = no multiprocessing, 0 = one per
+    # core, N = N workers.
+    embed_threads: int | None = None
+    embed_parallel: int | None = None
+
 
 def load_settings():
     return AppSettings()

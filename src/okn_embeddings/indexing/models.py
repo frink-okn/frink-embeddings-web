@@ -70,6 +70,14 @@ class GraphConfiguration(BaseModel):
     # geometry blobs, or other low-semantic-value relationships.
     ignore_predicates: list[str] = Field(default_factory=list)
 
+    # When non-empty, ONLY these predicates are walked; everything else is
+    # skipped as if ignored. Prefer this over `ignore_predicates` when a graph
+    # has many low-value predicates and few good ones -- an ontology whose
+    # relation vocabulary is open-ended (and grows with each release) cannot be
+    # covered by a blacklist, but its handful of annotation predicates is a
+    # stable allowlist.
+    include_predicates: list[str] = Field(default_factory=list)
+
     # Maximum number of objects to include per predicate for each subject.
     # When a predicate has more values than this, a stable hash-based selection
     # is used so repeated runs are deterministic.
@@ -170,6 +178,11 @@ class MaterializationConfiguration(BaseModel):
             if predicate not in ignore_predicates:
                 ignore_predicates.append(predicate)
 
+        include_predicates = [*defaults.include_predicates]
+        for predicate in target.include_predicates:
+            if predicate not in include_predicates:
+                include_predicates.append(predicate)
+
         predicate_limit = None
         if "predicate_limit" in defaults.model_fields_set:
             predicate_limit = defaults.predicate_limit
@@ -190,6 +203,7 @@ class MaterializationConfiguration(BaseModel):
             type=target.type,
             label_predicates=label_predicates,
             ignore_predicates=ignore_predicates,
+            include_predicates=include_predicates,
             predicate_limit=predicate_limit,
             expansion_limit=expansion_limit,
             include_rdfs_label=include_rdfs_label,
